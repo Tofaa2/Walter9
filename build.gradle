@@ -20,9 +20,9 @@ plugins {
     id "net.minecraftforge.gradle.forge" version "2.0.2"
 }
 */
-version = "1.8.6-beta2"
+version = "Beta"
 group= "me.Danker.DankersSkyblockMod" // http://maven.apache.org/guides/mini/guide-naming-conventions.html
-archivesBaseName = "Danker's Skyblock Mod"
+archivesBaseName = "Walter9"
 
 sourceCompatibility = targetCompatibility = 1.8
 
