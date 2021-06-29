@@ -1,4 +1,4 @@
-# Walter9
+# Hael9
 **(Based on Danker's Skyblock Mod)**
 
 ### Note: This mod is BANNABLE on Hypixel Skyblock
@@ -9,6 +9,7 @@
  - Hyperion Autoclicker
  - Ghost Block creator
  - Right click spammer
+ - NoRotate (prevents AOTE/Hyperion from changing head rotation)
  - Harp Solver
  
 **Controls/Hotkeys can be set in controls menu**
@@ -18,6 +19,7 @@
 - /rightclickamount [# of clicks per physical right click]
 - /sleepamount [time between terminal solver clicks in ms]
 - /swapdelay [delay in ms]
+- /norotate
 
 To turn on terminal solvers, do "/dsm", click "Toggle Dungeon Puzzle Solvers", and turn on any of the buttons with the word "Terminal" on it.
 
@@ -25,7 +27,7 @@ To turn on terminal solvers, do "/dsm", click "Toggle Dungeon Puzzle Solvers", a
 ### Below is the default Danker's Skyblock Mod README:
 QOL changes that enhances your Hypixel Skyblock experience. Created to add features I couldn't find in a mod, or if the mod was paid (which is against the [Mojang TOS](https://account.mojang.com/documents/commercial_guidelines)).
 
-Discord Server: https://discord.gg/Hf7Eb4Gfyd
+Discord Server: https://discord.gg/QsEkNQS
 
 ## Incompatibilities
 - Old Animations <2.6.4 - Frequent crashes
