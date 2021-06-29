@@ -1,29 +1,29 @@
 package me.Danker;
 
 import me.Danker.commands.*;
+import me.Danker.events.ChestSlotClickedEvent;
+import me.Danker.events.GuiChestBackgroundDrawnEvent;
+import me.Danker.events.RenderOverlay;
+import me.Danker.features.*;
+import me.Danker.features.loot.LootDisplay;
+import me.Danker.features.loot.LootTracker;
+import me.Danker.features.puzzlesolvers.*;
 import me.Danker.gui.*;
-import me.Danker.handlers.*;
-import me.Danker.utils.TicTacToeUtils;
+import me.Danker.handlers.ConfigHandler;
+import me.Danker.handlers.PacketHandler;
 import me.Danker.utils.Utils;
 import net.minecraft.block.Block;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.entity.EntityPlayerSP;
-import net.minecraft.client.gui.*;
+import net.minecraft.client.gui.GuiMainMenu;
 import net.minecraft.client.gui.inventory.GuiChest;
 import net.minecraft.client.settings.GameSettings;
 import net.minecraft.client.settings.KeyBinding;
 import net.minecraft.command.ICommand;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.item.EntityArmorStand;
-import net.minecraft.entity.item.EntityItemFrame;
-import net.minecraft.entity.monster.EntityCreeper;
-import net.minecraft.entity.monster.EntitySpider;
-import net.minecraft.entity.monster.EntityZombie;
-import net.minecraft.entity.passive.EntityWolf;
-import net.minecraft.entity.player.EntityPlayer;
-import net.minecraft.init.Blocks;
-import net.minecraft.init.Items;
+import net.minecraft.event.ClickEvent;
+import net.minecraft.event.ClickEvent.Action;
+import net.minecraft.event.HoverEvent;
 import net.minecraft.inventory.Container;
 import net.minecraft.inventory.ContainerChest;
 import net.minecraft.inventory.IInventory;
@@ -31,14 +31,16 @@ import net.minecraft.inventory.Slot;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemMap;
 import net.minecraft.item.ItemStack;
-import net.minecraft.nbt.NBTTagCompound;
-import net.minecraft.util.*;
-import net.minecraft.world.World;
-import net.minecraft.world.storage.MapData;
+import net.minecraft.util.ChatComponentText;
+import net.minecraft.util.EnumChatFormatting;
+import net.minecraft.util.IChatComponent;
+import net.minecraft.util.StringUtils;
 import net.minecraftforge.client.ClientCommandHandler;
 import net.minecraftforge.client.GuiIngameForge;
-import net.minecraftforge.client.event.*;
-import net.minecraftforge.client.event.sound.PlaySoundEvent;
+import net.minecraftforge.client.event.ClientChatReceivedEvent;
+import net.minecraftforge.client.event.GuiOpenEvent;
+import net.minecraftforge.client.event.GuiScreenEvent;
+import net.minecraftforge.client.event.RenderGameOverlayEvent;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.entity.EntityJoinWorldEvent;
 import net.minecraftforge.event.entity.player.AttackEntityEvent;
@@ -63,39 +65,23 @@ import org.lwjgl.input.Keyboard;
 import org.lwjgl.input.Mouse;
 import org.lwjgl.opengl.GL11;
 
-import java.awt.*;
-import java.lang.reflect.Method;
-import java.net.URLDecoder;
-import java.text.NumberFormat;
+import javax.sound.sampled.LineUnavailableException;
+import javax.sound.sampled.UnsupportedAudioFileException;
+import java.io.IOException;
 import java.util.List;
-import java.util.*;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.util.Map;
 
 @Mod(modid = DankersSkyblockMod.MODID, version = DankersSkyblockMod.VERSION, clientSideOnly = true)
 public class DankersSkyblockMod {
     public static final String MODID = "Danker's Skyblock Mod";
-    public static final String VERSION = "1.8.6-beta2";
-    public static Map<String, String> t6Enchants = new HashMap<>();
-    public static Pattern t6EnchantPattern = Pattern.compile("");
-    static Pattern petPattern = Pattern.compile("\\[Lvl [\\d]{1,3}]");
-    static boolean updateChecked = false;
+    public static final String VERSION = "1.8.6";
     public static int titleTimer = -1;
     public static boolean showTitle = false;
     public static String titleText = "";
-    public static int SKILL_TIME;
-    public static int skillTimer = -1;
-    public static boolean showSkill = false;
-    public static String skillText = "";
-    public static int until = 0;
-    public static int lastSlot = -1;
-    public static int slotIn = -1;
-    static int tickAmount = 1;
-    static String lastMaddoxCommand = "/cb placeholder";
-    static double lastMaddoxTime = 0;
-    static KeyBinding[] keyBindings = new KeyBinding[8];
-    static boolean usingLabymod = false;
-    static boolean usingOAM = false;
+    public static int tickAmount = 1;
+    public static KeyBinding[] keyBindings = new KeyBinding[3];
+    public static boolean usingLabymod = false;
+    public static boolean usingOAM = false;
     static boolean OAMWarning = false;
     public static String guiToOpen = null;
     static boolean foundLivid = false;
@@ -103,73 +89,7 @@ public class DankersSkyblockMod {
     public static double cakeTime;
     public static double nextBonzoUse = 0;
     public static boolean firstLaunch = false;
-    static String[] harpInv = new String[54];
-    public static int chestOpen = 0;
-    public static long lastInteractTime;
-
-    public static final ResourceLocation CAKE_ICON = new ResourceLocation("dsm", "icons/cake.png");
-    public static final ResourceLocation BONZO_ICON = new ResourceLocation("dsm", "icons/bonzo.png");
-
-    static String[] riddleSolutions = {"The reward is not in my chest!", "At least one of them is lying, and the reward is not in",
-            "My chest doesn't have the reward. We are all telling the truth", "My chest has the reward and I'm telling the truth",
-            "The reward isn't in any of our chests", "Both of them are telling the truth."};
-    static Map<String, String[]> triviaSolutions = new HashMap<>();
-    static String[] triviaAnswers = null;
-    static Entity highestBlaze = null;
-    static Entity lowestBlaze = null;
-    // Among Us colours
-    static final int[] CREEPER_COLOURS = {0x50EF39, 0xC51111, 0x132ED1, 0x117F2D, 0xED54BA, 0xEF7D0D, 0xF5F557, 0xD6E0F0, 0x6B2FBB, 0x39FEDC};
-    static boolean drawCreeperLines = false;
-    static Vec3 creeperLocation = new Vec3(0, 0, 0);
-    static List<Vec3[]> creeperLines = new ArrayList<>();
-    static boolean prevInWaterRoom = false;
-    static boolean inWaterRoom = false;
-    static String waterAnswers = null;
-    static AxisAlignedBB correctTicTacToeButton = null;
-    static Pattern startsWithTerminalPattern = Pattern.compile("[A-Z]{2,}");
-    static Slot[] clickInOrderSlots = new Slot[36];
-    static int lastChronomatronRound = 0;
-    static List<String> chronomatronPattern = new ArrayList<>();
-    static int chronomatronMouseClicks = 0;
-    static int lastUltraSequencerClicked = 0;
-    static ItemStack[] experimentTableSlots = new ItemStack[54];
-    static int pickBlockBind;
-    static boolean pickBlockBindSwapped = false;
-    static String terminalColorNeeded;
-    static int[] terminalNumberNeeded = new int[13];
-    static int[] chest = new int[54];
-
-    static double dungeonStartTime = 0;
-    static double bloodOpenTime = 0;
-    static double watcherClearTime = 0;
-    static double bossClearTime = 0;
-    static int witherDoors = 0;
-    static int dungeonDeaths = 0;
-    static int puzzleFails = 0;
-
-    public int mazeId = 0;
-    public int sword = 10;
-    public int bow = 10;
-
-    static String lastSkill = "Farming";
-    public static boolean showSkillTracker;
-    public static StopWatch skillStopwatch = new StopWatch();
-	static double farmingXP = 0;
-	public static double farmingXPGained = 0;
-	static double miningXP = 0;
-	public static double miningXPGained = 0;
-	static double combatXP = 0;
-	public static double combatXPGained = 0;
-	static double foragingXP = 0;
-	public static double foragingXPGained = 0;
-	static double fishingXP = 0;
-	public static double fishingXPGained = 0;
-	static double enchantingXP = 0;
-	public static double enchantingXPGained = 0;
-	static double alchemyXP = 0;
-	public static double alchemyXPGained = 0;
-	static double xpLeft = 0;
-	static double timeSinceGained = 0;
+    public static String configDirectory;
 
     public static String MAIN_COLOUR;
     public static String SECONDARY_COLOUR;
@@ -200,85 +120,58 @@ public class DankersSkyblockMod {
     public static int PET_100;
 
     @EventHandler
-    public void init(FMLInitializationEvent event) {
+    public void init(FMLInitializationEvent event) throws UnsupportedAudioFileException, IOException, LineUnavailableException {
         MinecraftForge.EVENT_BUS.register(this);
-        MinecraftForge.EVENT_BUS.register(new PacketHandler());
+        MinecraftForge.EVENT_BUS.register(new ArachneESP());
+        MinecraftForge.EVENT_BUS.register(new AutoDisplay());
+        MinecraftForge.EVENT_BUS.register(new AutoSwapToPickBlock());
+        MinecraftForge.EVENT_BUS.register(new BlazeSolver());
+        MinecraftForge.EVENT_BUS.register(new BonzoMaskTimer());
+        MinecraftForge.EVENT_BUS.register(new BoulderSolver());
+        MinecraftForge.EVENT_BUS.register(new CakeTimer());
+        MinecraftForge.EVENT_BUS.register(new ChronomatronSolver());
+        MinecraftForge.EVENT_BUS.register(new ClickInOrderSolver());
+        MinecraftForge.EVENT_BUS.register(new CreeperSolver());
+        MinecraftForge.EVENT_BUS.register(new CustomMusic());
+        MinecraftForge.EVENT_BUS.register(new DungeonTimer());
+        MinecraftForge.EVENT_BUS.register(new ExpertiseLore());
+        MinecraftForge.EVENT_BUS.register(new FasterMaddoxCalling());
+        MinecraftForge.EVENT_BUS.register(new GoldenEnchants());
+        MinecraftForge.EVENT_BUS.register(new GolemSpawningAlert());
+        MinecraftForge.EVENT_BUS.register(new GpartyNotifications());
+        MinecraftForge.EVENT_BUS.register(new HideTooltipsInExperiments());
+        MinecraftForge.EVENT_BUS.register(new IceWalkSolver());
+        MinecraftForge.EVENT_BUS.register(new LividSolver());
+        MinecraftForge.EVENT_BUS.register(new LootDisplay());
+        MinecraftForge.EVENT_BUS.register(new LootTracker());
+        MinecraftForge.EVENT_BUS.register(new LowHealthNotifications());
+        MinecraftForge.EVENT_BUS.register(new NecronNotifications());
+        MinecraftForge.EVENT_BUS.register(new NoF3Coords());
+        MinecraftForge.EVENT_BUS.register(new NotifySlayerSlain());
+        MinecraftForge.EVENT_BUS.register(new PetColours());
+        MinecraftForge.EVENT_BUS.register(new Reparty());
+        MinecraftForge.EVENT_BUS.register(new SelectAllColourSolver());
+        MinecraftForge.EVENT_BUS.register(new SilverfishSolver());
+        MinecraftForge.EVENT_BUS.register(new Skill50Display());
+        MinecraftForge.EVENT_BUS.register(new SkillTracker());
+        MinecraftForge.EVENT_BUS.register(new SlayerESP());
+        MinecraftForge.EVENT_BUS.register(new SpamHider());
+        MinecraftForge.EVENT_BUS.register(new SpiritBearAlert());
+        MinecraftForge.EVENT_BUS.register(new StartsWithSolver());
+        MinecraftForge.EVENT_BUS.register(new StopSalvagingStarredItems());
+        MinecraftForge.EVENT_BUS.register(new SuperpairsSolver());
+        MinecraftForge.EVENT_BUS.register(new ThreeManSolver());
+        MinecraftForge.EVENT_BUS.register(new TicTacToeSolver());
+        MinecraftForge.EVENT_BUS.register(new TriviaSolver());
+        MinecraftForge.EVENT_BUS.register(new UltrasequencerSolver());
+        MinecraftForge.EVENT_BUS.register(new UpdateChecker());
+        MinecraftForge.EVENT_BUS.register(new WatcherReadyAlert());
+        MinecraftForge.EVENT_BUS.register(new WaterSolver());
 
         ConfigHandler.reloadConfig();
-
-        // For golden enchants
-        t6Enchants.put("9Angler VI", "6Angler VI");
-        t6Enchants.put("9Bane of Arthropods VI", "6Bane of Arthropods VI");
-        t6Enchants.put("9Caster VI", "6Caster VI");
-        t6Enchants.put("9Compact X", "6Compact X");
-        t6Enchants.put("9Critical VI", "6Critical VI");
-        t6Enchants.put("9Dragon Hunter V", "6Dragon Hunter V");
-        t6Enchants.put("9Efficiency VI", "6Efficiency VI");
-        t6Enchants.put("9Ender Slayer VI", "6Ender Slayer VI");
-        t6Enchants.put("9Experience IV", "6Experience IV");
-        t6Enchants.put("9Expertise X", "6Expertise X");
-        t6Enchants.put("9Feather Falling X", "6Feather Falling X");
-        t6Enchants.put("9Frail VI", "6Frail VI");
-        t6Enchants.put("9Giant Killer VI", "6Giant Killer VI");
-        t6Enchants.put("9Growth VI", "6Growth VI");
-        t6Enchants.put("9Infinite Quiver X", "6Infinite Quiver X");
-        t6Enchants.put("9Lethality VI", "6Lethality VI");
-        t6Enchants.put("9Life Steal IV", "6Life Steal IV");
-        t6Enchants.put("9Looting IV", "6Looting IV");
-        t6Enchants.put("9Luck VI", "6Luck VI");
-        t6Enchants.put("9Luck of the Sea VI", "6Luck of the Sea VI");
-        t6Enchants.put("9Lure VI", "6Lure VI");
-        t6Enchants.put("9Magnet VI", "6Magnet VI");
-        t6Enchants.put("9Overload V", "6Overload V");
-        t6Enchants.put("9Power VI", "6Power VI");
-        t6Enchants.put("9Protection VI", "6Protection VI");
-        t6Enchants.put("9Scavenger IV", "6Scavenger IV");
-        t6Enchants.put("9Scavenger V", "6Scavenger V");
-        t6Enchants.put("9Sharpness VI", "6Sharpness VI");
-        t6Enchants.put("9Smite VI", "6Smite VI");
-        t6Enchants.put("9Spiked Hook VI", "6Spiked Hook VI");
-        t6Enchants.put("9Thunderlord VI", "6Thunderlord VI");
-        t6Enchants.put("9Vampirism VI", "6Vampirism VI");
-
-        triviaSolutions.put("What is the status of The Watcher?", new String[]{"Stalker"});
-        triviaSolutions.put("What is the status of Bonzo?", new String[]{"New Necromancer"});
-        triviaSolutions.put("What is the status of Scarf?", new String[]{"Apprentice Necromancer"});
-        triviaSolutions.put("What is the status of The Professor?", new String[]{"Professor"});
-        triviaSolutions.put("What is the status of Thorn?", new String[]{"Shaman Necromancer"});
-        triviaSolutions.put("What is the status of Livid?", new String[]{"Master Necromancer"});
-        triviaSolutions.put("What is the status of Sadan?", new String[]{"Necromancer Lord"});
-        triviaSolutions.put("What is the status of Maxor?", new String[]{"Young Wither"});
-        triviaSolutions.put("What is the status of Goldor?", new String[]{"Wither Soldier"});
-        triviaSolutions.put("What is the status of Storm?", new String[]{"Elementalist"});
-        triviaSolutions.put("What is the status of Necron?", new String[]{"Wither Lord"});
-        triviaSolutions.put("How many total Fairy Souls are there?", new String[]{"220 Fairy Souls"});
-        triviaSolutions.put("How many Fairy Souls are there in Spider's Den?", new String[]{"17 Fairy Souls"});
-        triviaSolutions.put("How many Fairy Souls are there in The End?", new String[]{"12 Fairy Souls"});
-        triviaSolutions.put("How many Fairy Souls are there in The Barn?", new String[]{"7 Fairy Souls"});
-        triviaSolutions.put("How many Fairy Souls are there in Mushroom Desert?", new String[]{"8 Fairy Souls"});
-        triviaSolutions.put("How many Fairy Souls are there in Blazing Fortress?", new String[]{"19 Fairy Souls"});
-        triviaSolutions.put("How many Fairy Souls are there in The Park?", new String[]{"11 Fairy Souls"});
-        triviaSolutions.put("How many Fairy Souls are there in Jerry's Workshop?", new String[]{"5 Fairy Souls"});
-        triviaSolutions.put("How many Fairy Souls are there in Hub?", new String[]{"79 Fairy Souls"});
-        triviaSolutions.put("How many Fairy Souls are there in The Hub?", new String[]{"79 Fairy Souls"});
-        triviaSolutions.put("How many Fairy Souls are there in Deep Caverns?", new String[]{"21 Fairy Souls"});
-        triviaSolutions.put("How many Fairy Souls are there in Gold Mine?", new String[]{"12 Fairy Souls"});
-        triviaSolutions.put("How many Fairy Souls are there in Dungeon Hub?", new String[]{"7 Fairy Souls"});
-        triviaSolutions.put("Which brother is on the Spider's Den?", new String[]{"Rick"});
-        triviaSolutions.put("What is the name of Rick's brother?", new String[]{"Pat"});
-        triviaSolutions.put("What is the name of the Painter in the Hub?", new String[]{"Marco"});
-        triviaSolutions.put("What is the name of the person that upgrades pets?", new String[]{"Kat"});
-        triviaSolutions.put("What is the name of the lady of the Nether?", new String[]{"Elle"});
-        triviaSolutions.put("Which villager in the Village gives you a Rogue Sword?", new String[]{"Jamie"});
-        triviaSolutions.put("How many unique minions are there?", new String[]{"53 Minions"});
-        triviaSolutions.put("Which of these enemies does not spawn in the Spider's Den?", new String[]{"Zombie Spider", "Cave Spider", "Wither Skeleton",
-                "Dashing Spooder", "Broodfather", "Night Spider"});
-        triviaSolutions.put("Which of these monsters only spawns at night?", new String[]{"Zombie Villager", "Ghast"});
-        triviaSolutions.put("Which of these is not a dragon in The End?", new String[]{"Zoomer Dragon", "Weak Dragon", "Stonk Dragon", "Holy Dragon", "Boomer Dragon",
-                "Booger Dragon", "Older Dragon", "Elder Dragon", "Stable Dragon", "Professor Dragon"});
-
-        String patternString = "(" + String.join("|", t6Enchants.keySet()) + ")";
-        t6EnchantPattern = Pattern.compile(patternString);
+        GoldenEnchants.init();
+        TriviaSolver.init();
+        CustomMusic.init(configDirectory);
 
         keyBindings[0] = new KeyBinding("Open Maddox Menu", Keyboard.KEY_M, "Danker's Skyblock Mod");
         keyBindings[1] = new KeyBinding("Regular Ability", Keyboard.KEY_NUMPAD4, "Danker's Skyblock Mod");
@@ -296,41 +189,42 @@ public class DankersSkyblockMod {
 
     @EventHandler
     public void preInit(final FMLPreInitializationEvent event) {
-    	ClientCommandHandler.instance.registerCommand(new ToggleCommand());
-    	ClientCommandHandler.instance.registerCommand(new SetkeyCommand());
-    	ClientCommandHandler.instance.registerCommand(new GetkeyCommand());
-        ClientCommandHandler.instance.registerCommand(new DelayCommand());
-        ClientCommandHandler.instance.registerCommand(new SimonCommand());
-        ClientCommandHandler.instance.registerCommand(new SwapCommand());
-        ClientCommandHandler.instance.registerCommand(new SleepCommand());
-    	ClientCommandHandler.instance.registerCommand(new LootCommand());
-    	ClientCommandHandler.instance.registerCommand(new ReloadConfigCommand());
-    	ClientCommandHandler.instance.registerCommand(new DisplayCommand());
-    	ClientCommandHandler.instance.registerCommand(new MoveCommand());
-    	ClientCommandHandler.instance.registerCommand(new SlayerCommand());
-    	ClientCommandHandler.instance.registerCommand(new SkillsCommand());
-    	ClientCommandHandler.instance.registerCommand(new GuildOfCommand());
-    	ClientCommandHandler.instance.registerCommand(new DHelpCommand());
-    	ClientCommandHandler.instance.registerCommand(new PetsCommand());
-    	ClientCommandHandler.instance.registerCommand(new BankCommand());
-    	ClientCommandHandler.instance.registerCommand(new ArmourCommand());
-    	ClientCommandHandler.instance.registerCommand(new ImportFishingCommand());
-    	ClientCommandHandler.instance.registerCommand(new ResetLootCommand());
-    	ClientCommandHandler.instance.registerCommand(new ScaleCommand());
-    	ClientCommandHandler.instance.registerCommand(new SkyblockPlayersCommand());
-    	ClientCommandHandler.instance.registerCommand(new BlockSlayerCommand());
-    	ClientCommandHandler.instance.registerCommand(new DungeonsCommand());
-    	ClientCommandHandler.instance.registerCommand(new LobbySkillsCommand());
-    	ClientCommandHandler.instance.registerCommand(new DankerGuiCommand());
-		ClientCommandHandler.instance.registerCommand(new SkillTrackerCommand());
+        ClientCommandHandler.instance.registerCommand(new ArmourCommand());
+        ClientCommandHandler.instance.registerCommand(new BankCommand());
+        ClientCommandHandler.instance.registerCommand(new CustomMusicCommand());
+        ClientCommandHandler.instance.registerCommand(new DHelpCommand());
+        ClientCommandHandler.instance.registerCommand(new DankerGuiCommand());
+        ClientCommandHandler.instance.registerCommand(new DisplayCommand());
+        ClientCommandHandler.instance.registerCommand(new DungeonsCommand());
+        ClientCommandHandler.instance.registerCommand(new FairySoulsCommand());
+        ClientCommandHandler.instance.registerCommand(new GetkeyCommand());
+        ClientCommandHandler.instance.registerCommand(new GuildOfCommand());
+        ClientCommandHandler.instance.registerCommand(new ImportFishingCommand());
+        ClientCommandHandler.instance.registerCommand(new LobbyBankCommand());
+        ClientCommandHandler.instance.registerCommand(new LobbySkillsCommand());
+        ClientCommandHandler.instance.registerCommand(new LootCommand());
+        ClientCommandHandler.instance.registerCommand(new MoveCommand());
+        ClientCommandHandler.instance.registerCommand(new PetsCommand());
+        ClientCommandHandler.instance.registerCommand(new ReloadConfigCommand());
+        ClientCommandHandler.instance.registerCommand(new ResetLootCommand());
+        ClientCommandHandler.instance.registerCommand(new ScaleCommand());
+        ClientCommandHandler.instance.registerCommand(new SetkeyCommand());
+        ClientCommandHandler.instance.registerCommand(new SkillTrackerCommand());
+        ClientCommandHandler.instance.registerCommand(new SkillsCommand());
+        ClientCommandHandler.instance.registerCommand(new SkyblockPlayersCommand());
+        ClientCommandHandler.instance.registerCommand(new SlayerCommand());
+        ClientCommandHandler.instance.registerCommand(new ToggleCommand());
+
+        configDirectory = event.getModConfigurationDirectory().toString();
     }
 
     @EventHandler
     public void postInit(final FMLPostInitializationEvent event) {
 		Package[] packages = Package.getPackages();
-		for(Package p : packages){
-			if(p.getName().startsWith("com.spiderfrog.gadgets") || p.getName().startsWith("com.spiderfrog.oldanimations")){
+		for (Package p : packages){
+			if (p.getName().startsWith("com.spiderfrog.gadgets") || p.getName().startsWith("com.spiderfrog.oldanimations")){
 				usingOAM = true;
+				break;
 			}
 		}
 		System.out.println("OAM detection: " + usingOAM);
@@ -338,10 +232,10 @@ public class DankersSkyblockMod {
     	usingLabymod = Loader.isModLoaded("labymod");
     	System.out.println("LabyMod detection: " + usingLabymod);
 
-        if(!ClientCommandHandler.instance.getCommands().containsKey("reparty")) {
+        if (!ClientCommandHandler.instance.getCommands().containsKey("reparty")) {
             ClientCommandHandler.instance.registerCommand(new RepartyCommand());
         } else if (ConfigHandler.getBoolean("commands", "reparty")) {
-            for(Map.Entry<String, ICommand> entry : ClientCommandHandler.instance.getCommands().entrySet()) {
+            for (Map.Entry<String, ICommand> entry : ClientCommandHandler.instance.getCommands().entrySet()) {
                 if (entry.getKey().equals("reparty") || entry.getKey().equals("rp")) {
                     entry.setValue(new RepartyCommand());
                 }
@@ -351,25 +245,48 @@ public class DankersSkyblockMod {
     }
 
     @SubscribeEvent
-	public void onGuiOpenEvent(GuiOpenEvent event){
-		if(event.gui instanceof GuiMainMenu && usingOAM && !OAMWarning){
-			if(!(event.gui instanceof WarningGui)){
-				event.gui = new WarningGuiRedirect(new WarningGui());
-				OAMWarning = true;
-			}
+	public void onGuiOpenEvent(GuiOpenEvent event) {
+		if (event.gui instanceof GuiMainMenu && usingOAM && !OAMWarning) {
+		    event.gui = new WarningGuiRedirect(new WarningGui());
+		    OAMWarning = true;
 		}
 	}
 
     @SubscribeEvent
-    public void onWorldChange(WorldEvent.Load event) {
-        foundLivid = false;
-        livid = null;
-        nextBonzoUse = 0;
-        mazeId = 0;
+    public void onJoin(EntityJoinWorldEvent event) {
+        if (firstLaunch) {
+            firstLaunch = false;
+            ConfigHandler.writeBooleanConfig("misc", "firstLaunch", false);
+
+            IChatComponent chatComponent = new ChatComponentText(
+                    EnumChatFormatting.GOLD + "Thank you for downloading Danker's Skyblock Mod.\n" +
+                         "To get started, run the command " + EnumChatFormatting.GOLD + "/dsm" + EnumChatFormatting.RESET + " to view all the mod features."
+            );
+            chatComponent.setChatStyle(chatComponent.getChatStyle().setChatHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, new ChatComponentText("Click to open the DSM menu."))).setChatClickEvent(new ClickEvent(Action.RUN_COMMAND, "/dsm")));
+
+            new Thread(() -> {
+                while (true) {
+                    if (Minecraft.getMinecraft().thePlayer == null) {
+                        try {
+                            Thread.sleep(500);
+                        } catch (InterruptedException e) {
+                            e.printStackTrace();
+                        }
+                        continue;
+                    }
+                    try {
+                        Thread.sleep(2000);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                    Minecraft.getMinecraft().thePlayer.addChatMessage(chatComponent);
+                    break;
+                }
+            }).start();
+        }
     }
 
-    // It randomly broke, so I had to make it the highest priority
-    @SubscribeEvent(priority = EventPriority.HIGHEST)
+    @SubscribeEvent
     public void onChat(ClientChatReceivedEvent event) {
     	String message = StringUtils.stripControlCodes(event.message.getUnformattedText());
 
@@ -1438,7 +1355,8 @@ public class DankersSkyblockMod {
         if (usingLabymod && !(Minecraft.getMinecraft().ingameGUI instanceof GuiIngameForge)) return;
         if (event.type != RenderGameOverlayEvent.ElementType.EXPERIENCE && event.type != RenderGameOverlayEvent.ElementType.JUMPBAR)
             return;
-        renderEverything();
+        if (Minecraft.getMinecraft().currentScreen instanceof EditLocationsGui) return;
+        MinecraftForge.EVENT_BUS.post(new RenderOverlay());
     }
 
     // LabyMod Support
@@ -1451,1013 +1369,11 @@ public class DankersSkyblockMod {
 
     public void renderEverything() {
         if (Minecraft.getMinecraft().currentScreen instanceof EditLocationsGui) return;
+        MinecraftForge.EVENT_BUS.post(new RenderOverlay());
+    }
 
-        Minecraft mc = Minecraft.getMinecraft();
-
-        if (ToggleCommand.coordsToggled) {
-            EntityPlayer player = mc.thePlayer;
-
-            double xDir = (player.rotationYaw % 360 + 360) % 360;
-            if (xDir > 180) xDir -= 360;
-            xDir = (double) Math.round(xDir * 10d) / 10d;
-            double yDir = (double) Math.round(player.rotationPitch * 10d) / 10d;
-
-            String coordText = COORDS_COLOUR + (int) player.posX + " / " + (int) player.posY + " / " + (int) player.posZ + " (" + xDir + " / " + yDir + ")";
-            new TextRenderer(mc, coordText, MoveCommand.coordsXY[0], MoveCommand.coordsXY[1], ScaleCommand.coordsScale);
-        }
-
-        if (ToggleCommand.dungeonTimerToggled && Utils.inDungeons) {
-            String dungeonTimerText = EnumChatFormatting.GRAY + "Wither Doors:\n" +
-                                      EnumChatFormatting.DARK_RED + "Blood Open:\n" +
-                                      EnumChatFormatting.RED + "Watcher Clear:\n" +
-                                      EnumChatFormatting.BLUE + "Boss Clear:\n" +
-                                      EnumChatFormatting.YELLOW + "Deaths:\n" +
-                                      EnumChatFormatting.YELLOW + "Puzzle Fails:";
-            String dungeonTimers = EnumChatFormatting.GRAY + "" + witherDoors + "\n" +
-                                   EnumChatFormatting.DARK_RED + Utils.getTimeBetween(dungeonStartTime, bloodOpenTime) + "\n" +
-                                   EnumChatFormatting.RED + Utils.getTimeBetween(dungeonStartTime, watcherClearTime) + "\n" +
-                                   EnumChatFormatting.BLUE + Utils.getTimeBetween(dungeonStartTime, bossClearTime) + "\n" +
-                                   EnumChatFormatting.YELLOW + dungeonDeaths + "\n" +
-                                   EnumChatFormatting.YELLOW + puzzleFails;
-            new TextRenderer(mc, dungeonTimerText, MoveCommand.dungeonTimerXY[0], MoveCommand.dungeonTimerXY[1], ScaleCommand.dungeonTimerScale);
-            new TextRenderer(mc, dungeonTimers, (int) (MoveCommand.dungeonTimerXY[0] + (80 * ScaleCommand.dungeonTimerScale)), MoveCommand.dungeonTimerXY[1], ScaleCommand.dungeonTimerScale);
-        }
-
-        if (ToggleCommand.lividSolverToggled && foundLivid && livid != null) {
-            new TextRenderer(mc, livid.getName().replace("" + EnumChatFormatting.BOLD, ""), MoveCommand.lividHpXY[0], MoveCommand.lividHpXY[1], ScaleCommand.lividHpScale);
-        }
-
-        if (ToggleCommand.cakeTimerToggled) {
-            double scale = ScaleCommand.cakeTimerScale;
-            double scaleReset = Math.pow(scale, -1);
-            GL11.glScaled(scale, scale, scale);
-
-            double timeNow = System.currentTimeMillis() / 1000;
-            mc.getTextureManager().bindTexture(CAKE_ICON);
-            Gui.drawModalRectWithCustomSizedTexture(MoveCommand.cakeTimerXY[0], MoveCommand.cakeTimerXY[1], 0, 0, 16, 16, 16, 16);
-
-            String cakeText;
-            if (cakeTime - timeNow < 0) {
-                cakeText = EnumChatFormatting.RED + "NONE";
-            } else {
-                cakeText = CAKE_COLOUR + Utils.getTimeBetween(timeNow, cakeTime);
-            }
-            new TextRenderer(mc, cakeText, MoveCommand.cakeTimerXY[0] + 20, MoveCommand.cakeTimerXY[1] + 5, 1);
-
-            GL11.glScaled(scaleReset, scaleReset, scaleReset);
-        }
-
-        if (ToggleCommand.bonzoTimerToggled && Utils.inDungeons) {
-
-            ItemStack helmetSlot = mc.thePlayer.getCurrentArmor(3);
-            if ((helmetSlot != null && helmetSlot.getDisplayName().contains("Bonzo's Mask")) || nextBonzoUse > 0) {
-
-                double scale = ScaleCommand.bonzoTimerScale;
-                double scaleReset = Math.pow(scale, -1);
-                GL11.glScaled(scale, scale, scale);
-
-                double timeNow = System.currentTimeMillis() / 1000;
-                mc.getTextureManager().bindTexture(BONZO_ICON);
-                Gui.drawModalRectWithCustomSizedTexture(MoveCommand.bonzoTimerXY[0], MoveCommand.bonzoTimerXY[1], 0, 0, 16, 16, 16, 16);
-
-                String bonzoText;
-                if (nextBonzoUse - timeNow < 0) {
-                    bonzoText = EnumChatFormatting.GREEN + "READY";
-                } else {
-                    bonzoText = BONZO_COLOR + Utils.getTimeBetween(timeNow, nextBonzoUse);
-                }
-                new TextRenderer(mc, bonzoText, MoveCommand.bonzoTimerXY[0] + 20, MoveCommand.bonzoTimerXY[1] + 5, 1);
-
-                GL11.glScaled(scaleReset, scaleReset, scaleReset);
-            }
-        }
-
-        if (showSkillTracker) {
-            int xpPerHour;
-            double xpToShow = 0;
-            switch (lastSkill) {
-                case "Farming":
-                    xpToShow = farmingXPGained;
-                    break;
-                case "Mining":
-                    xpToShow = miningXPGained;
-                    break;
-                case "Combat":
-                    xpToShow = combatXPGained;
-                    break;
-                case "Foraging":
-                    xpToShow = foragingXPGained;
-                    break;
-                case "Fishing":
-                    xpToShow = fishingXPGained;
-                    break;
-                case "Enchanting":
-                    xpToShow = enchantingXPGained;
-                    break;
-                case "Alchemy":
-                    xpToShow = alchemyXPGained;
-                    break;
-                default:
-                    System.err.println("Unknown skill in rendering.");
-            }
-            xpPerHour = (int) Math.round(xpToShow / ((skillStopwatch.getTime() + 1) / 3600000d));
-            String skillTrackerText = SKILL_TRACKER_COLOUR + lastSkill + " XP Earned: " + NumberFormat.getNumberInstance(Locale.US).format(xpToShow) + "\n" +
-                                      SKILL_TRACKER_COLOUR + "Time Elapsed: " + Utils.getTimeBetween(0, skillStopwatch.getTime() / 1000d) + "\n" +
-                                      SKILL_TRACKER_COLOUR + "XP Per Hour: " + NumberFormat.getIntegerInstance(Locale.US).format(xpPerHour);
-            if (xpLeft >= 0) {
-                String time = xpPerHour == 0 ? "Never" : Utils.getTimeBetween(0, xpLeft / (xpPerHour / 3600D));
-                skillTrackerText += "\n" + SKILL_TRACKER_COLOUR + "Time Until Next Level: " + time;
-            }
-            if (!skillStopwatch.isStarted() || skillStopwatch.isSuspended()) {
-                skillTrackerText += "\n" + EnumChatFormatting.RED + "PAUSED";
-            }
-
-            new TextRenderer(mc, skillTrackerText, MoveCommand.skillTrackerXY[0], MoveCommand.skillTrackerXY[1], ScaleCommand.skillTrackerScale);
-        }
-
-        if (ToggleCommand.waterToggled && Utils.inDungeons && waterAnswers != null) {
-            new TextRenderer(mc, waterAnswers, MoveCommand.waterAnswerXY[0], MoveCommand.waterAnswerXY[1], ScaleCommand.waterAnswerScale);
-        }
-
-        if (!DisplayCommand.display.equals("off")) {
-            String dropsText = "";
-            String countText = "";
-            String dropsTextTwo;
-            String countTextTwo;
-            String timeBetween;
-            String bossesBetween;
-            String drop20;
-            double timeNow = System.currentTimeMillis() / 1000;
-            NumberFormat nf = NumberFormat.getIntegerInstance(Locale.US);
-
-            switch (DisplayCommand.display) {
-                case "wolf":
-                    if (LootCommand.wolfTime == -1) {
-                        timeBetween = "Never";
-                    } else {
-                        timeBetween = Utils.getTimeBetween(LootCommand.wolfTime, timeNow);
-                    }
-                    if (LootCommand.wolfBosses == -1) {
-                        bossesBetween = "Never";
-                    } else {
-                        bossesBetween = nf.format(LootCommand.wolfBosses);
-                    }
-                    if (ToggleCommand.slayerCountTotal) {
-                        drop20 = nf.format(LootCommand.wolfWheels);
-                    } else {
-                        drop20 = nf.format(LootCommand.wolfWheelsDrops) + " times";
-                    }
-
-                    dropsText = EnumChatFormatting.GOLD + "Svens Killed:\n" +
-                                EnumChatFormatting.GREEN + "Wolf Teeth:\n" +
-                                EnumChatFormatting.BLUE + "Hamster Wheels:\n" +
-                                EnumChatFormatting.AQUA + "Spirit Runes:\n" +
-                                EnumChatFormatting.WHITE + "Critical VI Books:\n" +
-                                EnumChatFormatting.DARK_RED + "Red Claw Eggs:\n" +
-                                EnumChatFormatting.GOLD + "Couture Runes:\n" +
-                                EnumChatFormatting.AQUA + "Grizzly Baits:\n" +
-                                EnumChatFormatting.DARK_PURPLE + "Overfluxes:\n" +
-                                EnumChatFormatting.AQUA + "Time Since RNG:\n" +
-                                EnumChatFormatting.AQUA + "Bosses Since RNG:";
-                    countText = EnumChatFormatting.GOLD + nf.format(LootCommand.wolfSvens) + "\n" +
-                                EnumChatFormatting.GREEN + nf.format(LootCommand.wolfTeeth) + "\n" +
-                                EnumChatFormatting.BLUE + drop20 + "\n" +
-                                EnumChatFormatting.AQUA + LootCommand.wolfSpirits + "\n" +
-                                EnumChatFormatting.WHITE + LootCommand.wolfBooks + "\n" +
-                                EnumChatFormatting.DARK_RED + LootCommand.wolfEggs + "\n" +
-                                EnumChatFormatting.GOLD + LootCommand.wolfCoutures + "\n" +
-                                EnumChatFormatting.AQUA + LootCommand.wolfBaits + "\n" +
-                                EnumChatFormatting.DARK_PURPLE + LootCommand.wolfFluxes + "\n" +
-                                EnumChatFormatting.AQUA + timeBetween + "\n" +
-                                EnumChatFormatting.AQUA + bossesBetween;
-                    break;
-                case "wolf_session":
-                    if (LootCommand.wolfTimeSession == -1) {
-                        timeBetween = "Never";
-                    } else {
-                        timeBetween = Utils.getTimeBetween(LootCommand.wolfTimeSession, timeNow);
-                    }
-                    if (LootCommand.wolfBossesSession == -1) {
-                        bossesBetween = "Never";
-                    } else {
-                        bossesBetween = nf.format(LootCommand.wolfBossesSession);
-                    }
-                    if (ToggleCommand.slayerCountTotal) {
-                        drop20 = nf.format(LootCommand.wolfWheelsSession);
-                    } else {
-                        drop20 = nf.format(LootCommand.wolfWheelsDropsSession) + " times";
-                    }
-
-                    dropsText = EnumChatFormatting.GOLD + "Svens Killed:\n" +
-                                EnumChatFormatting.GREEN + "Wolf Teeth:\n" +
-                                EnumChatFormatting.BLUE + "Hamster Wheels:\n" +
-                                EnumChatFormatting.AQUA + "Spirit Runes:\n" +
-                                EnumChatFormatting.WHITE + "Critical VI Books:\n" +
-                                EnumChatFormatting.DARK_RED + "Red Claw Eggs:\n" +
-                                EnumChatFormatting.GOLD + "Couture Runes:\n" +
-                                EnumChatFormatting.AQUA + "Grizzly Baits:\n" +
-                                EnumChatFormatting.DARK_PURPLE + "Overfluxes:\n" +
-                                EnumChatFormatting.AQUA + "Time Since RNG:\n" +
-                                EnumChatFormatting.AQUA + "Bosses Since RNG:";
-                    countText = EnumChatFormatting.GOLD + nf.format(LootCommand.wolfSvensSession) + "\n" +
-                                EnumChatFormatting.GREEN + nf.format(LootCommand.wolfTeethSession) + "\n" +
-                                EnumChatFormatting.BLUE + drop20 + "\n" +
-                                EnumChatFormatting.AQUA + LootCommand.wolfSpiritsSession + "\n" +
-                                EnumChatFormatting.WHITE + LootCommand.wolfBooksSession + "\n" +
-                                EnumChatFormatting.DARK_RED + LootCommand.wolfEggsSession + "\n" +
-                                EnumChatFormatting.GOLD + LootCommand.wolfCouturesSession + "\n" +
-                                EnumChatFormatting.AQUA + LootCommand.wolfBaitsSession + "\n" +
-                                EnumChatFormatting.DARK_PURPLE + LootCommand.wolfFluxesSession + "\n" +
-                                EnumChatFormatting.AQUA + timeBetween + "\n" +
-                                EnumChatFormatting.AQUA + bossesBetween;
-                    break;
-                case "spider":
-                    if (LootCommand.spiderTime == -1) {
-                        timeBetween = "Never";
-                    } else {
-                        timeBetween = Utils.getTimeBetween(LootCommand.spiderTime, timeNow);
-                    }
-                    if (LootCommand.spiderBosses == -1) {
-                        bossesBetween = "Never";
-                    } else {
-                        bossesBetween = nf.format(LootCommand.spiderBosses);
-                    }
-                    if (ToggleCommand.slayerCountTotal) {
-                        drop20 = nf.format(LootCommand.spiderTAP);
-                    } else {
-                        drop20 = nf.format(LootCommand.spiderTAPDrops) + " times";
-                    }
-
-                    dropsText = EnumChatFormatting.GOLD + "Tarantulas Killed:\n" +
-                                EnumChatFormatting.GREEN + "Tarantula Webs:\n" +
-                                EnumChatFormatting.DARK_GREEN + "Arrow Poison:\n" +
-                                EnumChatFormatting.DARK_GRAY + "Bite Runes:\n" +
-                                EnumChatFormatting.WHITE + "Bane VI Books:\n" +
-                                EnumChatFormatting.AQUA + "Spider Catalysts:\n" +
-                                EnumChatFormatting.DARK_PURPLE + "Tarantula Talismans:\n" +
-                                EnumChatFormatting.LIGHT_PURPLE + "Fly Swatters:\n" +
-                                EnumChatFormatting.GOLD + "Digested Mosquitos:\n" +
-                                EnumChatFormatting.AQUA + "Time Since RNG:\n" +
-                                EnumChatFormatting.AQUA + "Bosses Since RNG:";
-                    countText = EnumChatFormatting.GOLD + nf.format(LootCommand.spiderTarantulas) + "\n" +
-                                EnumChatFormatting.GREEN + nf.format(LootCommand.spiderWebs) + "\n" +
-                                EnumChatFormatting.DARK_GREEN + drop20 + "\n" +
-                                EnumChatFormatting.DARK_GRAY + LootCommand.spiderBites + "\n" +
-                                EnumChatFormatting.WHITE + LootCommand.spiderBooks + "\n" +
-                                EnumChatFormatting.AQUA + LootCommand.spiderCatalysts + "\n" +
-                                EnumChatFormatting.DARK_PURPLE + LootCommand.spiderTalismans + "\n" +
-                                EnumChatFormatting.LIGHT_PURPLE + LootCommand.spiderSwatters + "\n" +
-                                EnumChatFormatting.GOLD + LootCommand.spiderMosquitos + "\n" +
-                                EnumChatFormatting.AQUA + timeBetween + "\n" +
-                                EnumChatFormatting.AQUA + bossesBetween;
-                    break;
-                case "spider_session":
-                    if (LootCommand.spiderTimeSession == -1) {
-                        timeBetween = "Never";
-                    } else {
-                        timeBetween = Utils.getTimeBetween(LootCommand.spiderTimeSession, timeNow);
-                    }
-                    if (LootCommand.spiderBossesSession == -1) {
-                        bossesBetween = "Never";
-                    } else {
-                        bossesBetween = nf.format(LootCommand.spiderBossesSession);
-                    }
-                    if (ToggleCommand.slayerCountTotal) {
-                        drop20 = nf.format(LootCommand.spiderTAPSession);
-                    } else {
-                        drop20 = nf.format(LootCommand.spiderTAPDropsSession) + " times";
-                    }
-
-                    dropsText = EnumChatFormatting.GOLD + "Tarantulas Killed:\n" +
-                                EnumChatFormatting.GREEN + "Tarantula Webs:\n" +
-                                EnumChatFormatting.DARK_GREEN + "Arrow Poison:\n" +
-                                EnumChatFormatting.DARK_GRAY + "Bite Runes:\n" +
-                                EnumChatFormatting.WHITE + "Bane VI Books:\n" +
-                                EnumChatFormatting.AQUA + "Spider Catalysts:\n" +
-                                EnumChatFormatting.DARK_PURPLE + "Tarantula Talismans:\n" +
-                                EnumChatFormatting.LIGHT_PURPLE + "Fly Swatters:\n" +
-                                EnumChatFormatting.GOLD + "Digested Mosquitos:\n" +
-                                EnumChatFormatting.AQUA + "Time Since RNG:\n" +
-                                EnumChatFormatting.AQUA + "Bosses Since RNG:";
-                    countText = EnumChatFormatting.GOLD + nf.format(LootCommand.spiderTarantulasSession) + "\n" +
-                                EnumChatFormatting.GREEN + nf.format(LootCommand.spiderWebsSession) + "\n" +
-                                EnumChatFormatting.DARK_GREEN + drop20 + "\n" +
-                                EnumChatFormatting.DARK_GRAY + LootCommand.spiderBitesSession + "\n" +
-                                EnumChatFormatting.WHITE + LootCommand.spiderBooksSession + "\n" +
-                                EnumChatFormatting.AQUA + LootCommand.spiderCatalystsSession + "\n" +
-                                EnumChatFormatting.DARK_PURPLE + LootCommand.spiderTalismansSession + "\n" +
-                                EnumChatFormatting.LIGHT_PURPLE + LootCommand.spiderSwattersSession + "\n" +
-                                EnumChatFormatting.GOLD + LootCommand.spiderMosquitosSession + "\n" +
-                                EnumChatFormatting.AQUA + timeBetween + "\n" +
-                                EnumChatFormatting.AQUA + bossesBetween;
-                    break;
-                case "zombie":
-                    if (LootCommand.zombieTime == -1) {
-                        timeBetween = "Never";
-                    } else {
-                        timeBetween = Utils.getTimeBetween(LootCommand.zombieTime, timeNow);
-                    }
-                    if (LootCommand.zombieBosses == -1) {
-                        bossesBetween = "Never";
-                    } else {
-                        bossesBetween = nf.format(LootCommand.zombieBosses);
-                    }
-                    if (ToggleCommand.slayerCountTotal) {
-                        drop20 = nf.format(LootCommand.zombieFoulFlesh);
-                    } else {
-                        drop20 = nf.format(LootCommand.zombieFoulFleshDrops) + " times";
-                    }
-
-                    dropsText = EnumChatFormatting.GOLD + "Revs Killed:\n" +
-                                EnumChatFormatting.GREEN + "Revenant Flesh:\n" +
-                                EnumChatFormatting.BLUE + "Foul Flesh:\n" +
-                                EnumChatFormatting.DARK_GREEN + "Pestilence Runes:\n" +
-                                EnumChatFormatting.WHITE + "Smite VI Books:\n" +
-                                EnumChatFormatting.AQUA + "Undead Catalysts:\n" +
-                                EnumChatFormatting.DARK_PURPLE + "Beheaded Horrors:\n" +
-                                EnumChatFormatting.RED + "Revenant Catalysts:\n" +
-                                EnumChatFormatting.DARK_GREEN + "Snake Runes:\n" +
-                                EnumChatFormatting.GOLD + "Scythe Blades:\n" +
-                                EnumChatFormatting.AQUA + "Time Since RNG:\n" +
-                                EnumChatFormatting.AQUA + "Bosses Since RNG:";
-                    countText = EnumChatFormatting.GOLD + nf.format(LootCommand.zombieRevs) + "\n" +
-                                EnumChatFormatting.GREEN + nf.format(LootCommand.zombieRevFlesh) + "\n" +
-                                EnumChatFormatting.BLUE + drop20 + "\n" +
-                                EnumChatFormatting.DARK_GREEN + LootCommand.zombiePestilences + "\n" +
-                                EnumChatFormatting.WHITE + LootCommand.zombieBooks + "\n" +
-                                EnumChatFormatting.AQUA + LootCommand.zombieUndeadCatas + "\n" +
-                                EnumChatFormatting.DARK_PURPLE + LootCommand.zombieBeheadeds + "\n" +
-                                EnumChatFormatting.RED + LootCommand.zombieRevCatas + "\n" +
-                                EnumChatFormatting.DARK_GREEN + LootCommand.zombieSnakes + "\n" +
-                                EnumChatFormatting.GOLD + LootCommand.zombieScythes + "\n" +
-                                EnumChatFormatting.AQUA + timeBetween + "\n" +
-                                EnumChatFormatting.AQUA + bossesBetween;
-                    break;
-                case "zombie_session":
-                    if (LootCommand.zombieTimeSession == -1) {
-                        timeBetween = "Never";
-                    } else {
-                        timeBetween = Utils.getTimeBetween(LootCommand.zombieTimeSession, timeNow);
-                    }
-                    if (LootCommand.zombieBossesSession == -1) {
-                        bossesBetween = "Never";
-                    } else {
-                        bossesBetween = nf.format(LootCommand.zombieBossesSession);
-                    }
-                    if (ToggleCommand.slayerCountTotal) {
-                        drop20 = nf.format(LootCommand.zombieFoulFleshSession);
-                    } else {
-                        drop20 = nf.format(LootCommand.zombieFoulFleshDropsSession) + " times";
-                    }
-
-                    dropsText = EnumChatFormatting.GOLD + "Revs Killed:\n" +
-                                EnumChatFormatting.GREEN + "Revenant Flesh:\n" +
-                                EnumChatFormatting.BLUE + "Foul Flesh:\n" +
-                                EnumChatFormatting.DARK_GREEN + "Pestilence Runes:\n" +
-                                EnumChatFormatting.WHITE + "Smite VI Books:\n" +
-                                EnumChatFormatting.AQUA + "Undead Catalysts:\n" +
-                                EnumChatFormatting.DARK_PURPLE + "Beheaded Horrors:\n" +
-                                EnumChatFormatting.RED + "Revenant Catalysts:\n" +
-                                EnumChatFormatting.DARK_GREEN + "Snake Runes:\n" +
-                                EnumChatFormatting.GOLD + "Scythe Blades:\n" +
-                                EnumChatFormatting.AQUA + "Time Since RNG:\n" +
-                                EnumChatFormatting.AQUA + "Bosses Since RNG:";
-                    countText = EnumChatFormatting.GOLD + nf.format(LootCommand.zombieRevsSession) + "\n" +
-                                EnumChatFormatting.GREEN + nf.format(LootCommand.zombieRevFleshSession) + "\n" +
-                                EnumChatFormatting.BLUE + drop20 + "\n" +
-                                EnumChatFormatting.DARK_GREEN + LootCommand.zombiePestilencesSession + "\n" +
-                                EnumChatFormatting.WHITE + LootCommand.zombieBooksSession + "\n" +
-                                EnumChatFormatting.AQUA + LootCommand.zombieUndeadCatasSession + "\n" +
-                                EnumChatFormatting.DARK_PURPLE + LootCommand.zombieBeheadedsSession + "\n" +
-                                EnumChatFormatting.RED + LootCommand.zombieRevCatasSession + "\n" +
-                                EnumChatFormatting.DARK_GREEN + LootCommand.zombieSnakesSession + "\n" +
-                                EnumChatFormatting.GOLD + LootCommand.zombieScythes + "\n" +
-                                EnumChatFormatting.AQUA + timeBetween + "\n" +
-                                EnumChatFormatting.AQUA + bossesBetween;
-                    break;
-                case "fishing":
-                    if (LootCommand.empTime == -1) {
-                        timeBetween = "Never";
-                    } else {
-                        timeBetween = Utils.getTimeBetween(LootCommand.empTime, timeNow);
-                    }
-                    if (LootCommand.empSCs == -1) {
-                        bossesBetween = "Never";
-                    } else {
-                        bossesBetween = nf.format(LootCommand.empSCs);
-                    }
-
-                    dropsText = EnumChatFormatting.AQUA + "Creatures Caught:\n" +
-                                EnumChatFormatting.AQUA + "Fishing Milestone:\n" +
-                                EnumChatFormatting.GOLD + "Good Catches:\n" +
-                                EnumChatFormatting.DARK_PURPLE + "Great Catches:\n" +
-                                EnumChatFormatting.GRAY + "Squids:\n" +
-                                EnumChatFormatting.GREEN + "Sea Walkers:\n" +
-                                EnumChatFormatting.DARK_GRAY + "Night Squids:\n" +
-                                EnumChatFormatting.DARK_AQUA + "Sea Guardians:\n" +
-                                EnumChatFormatting.BLUE + "Sea Witches:\n" +
-                                EnumChatFormatting.GREEN + "Sea Archers:";
-                    countText = EnumChatFormatting.AQUA + nf.format(LootCommand.seaCreatures) + "\n" +
-                                EnumChatFormatting.AQUA + nf.format(LootCommand.fishingMilestone) + "\n" +
-                                EnumChatFormatting.GOLD + nf.format(LootCommand.goodCatches) + "\n" +
-                                EnumChatFormatting.DARK_PURPLE + nf.format(LootCommand.greatCatches) + "\n" +
-                                EnumChatFormatting.GRAY + nf.format(LootCommand.squids) + "\n" +
-                                EnumChatFormatting.GREEN + nf.format(LootCommand.seaWalkers) + "\n" +
-                                EnumChatFormatting.DARK_GRAY + nf.format(LootCommand.nightSquids) + "\n" +
-                                EnumChatFormatting.DARK_AQUA + nf.format(LootCommand.seaGuardians) + "\n" +
-                                EnumChatFormatting.BLUE + nf.format(LootCommand.seaWitches) + "\n" +
-                                EnumChatFormatting.GREEN + nf.format(LootCommand.seaArchers);
-                    // Seperated to save vertical space
-                    dropsTextTwo = EnumChatFormatting.GREEN + "Monster of Deeps:\n" +
-                                   EnumChatFormatting.YELLOW + "Catfishes:\n" +
-                                   EnumChatFormatting.GOLD + "Carrot Kings:\n" +
-                                   EnumChatFormatting.GRAY + "Sea Leeches:\n" +
-                                   EnumChatFormatting.DARK_PURPLE + "Guardian Defenders:\n" +
-                                   EnumChatFormatting.DARK_PURPLE + "Deep Sea Protectors:\n" +
-                                   EnumChatFormatting.GOLD + "Hydras:\n" +
-                                   EnumChatFormatting.GOLD + "Sea Emperors:\n" +
-                                   EnumChatFormatting.AQUA + "Time Since Emp:\n" +
-                                   EnumChatFormatting.AQUA + "Creatures Since Emp:";
-                    countTextTwo = EnumChatFormatting.GREEN + nf.format(LootCommand.monsterOfTheDeeps) + "\n" +
-                                   EnumChatFormatting.YELLOW + nf.format(LootCommand.catfishes) + "\n" +
-                                   EnumChatFormatting.GOLD + nf.format(LootCommand.carrotKings) + "\n" +
-                                   EnumChatFormatting.GRAY + nf.format(LootCommand.seaLeeches) + "\n" +
-                                   EnumChatFormatting.DARK_PURPLE + nf.format(LootCommand.guardianDefenders) + "\n" +
-                                   EnumChatFormatting.DARK_PURPLE + nf.format(LootCommand.deepSeaProtectors) + "\n" +
-                                   EnumChatFormatting.GOLD + nf.format(LootCommand.hydras) + "\n" +
-                                   EnumChatFormatting.GOLD + nf.format(LootCommand.seaEmperors) + "\n" +
-                                   EnumChatFormatting.AQUA + timeBetween + "\n" +
-                                   EnumChatFormatting.AQUA + bossesBetween;
-
-                    if (ToggleCommand.splitFishing) {
-                        new TextRenderer(mc, dropsTextTwo, (int) (MoveCommand.displayXY[0] + (160 * ScaleCommand.displayScale)), MoveCommand.displayXY[1], ScaleCommand.displayScale);
-                        new TextRenderer(mc, countTextTwo, (int) (MoveCommand.displayXY[0] + (270 * ScaleCommand.displayScale)), MoveCommand.displayXY[1], ScaleCommand.displayScale);
-                    } else {
-                        dropsText += "\n" + dropsTextTwo;
-                        countText += "\n" + countTextTwo;
-                    }
-                    break;
-                case "fishing_session":
-                    if (LootCommand.empTimeSession == -1) {
-                        timeBetween = "Never";
-                    } else {
-                        timeBetween = Utils.getTimeBetween(LootCommand.empTimeSession, timeNow);
-                    }
-                    if (LootCommand.empSCsSession == -1) {
-                        bossesBetween = "Never";
-                    } else {
-                        bossesBetween = nf.format(LootCommand.empSCsSession);
-                    }
-
-                    dropsText = EnumChatFormatting.AQUA + "Creatures Caught:\n" +
-                                EnumChatFormatting.AQUA + "Fishing Milestone:\n" +
-                                EnumChatFormatting.GOLD + "Good Catches:\n" +
-                                EnumChatFormatting.DARK_PURPLE + "Great Catches:\n" +
-                                EnumChatFormatting.GRAY + "Squids:\n" +
-                                EnumChatFormatting.GREEN + "Sea Walkers:\n" +
-                                EnumChatFormatting.DARK_GRAY + "Night Squids:\n" +
-                                EnumChatFormatting.DARK_AQUA + "Sea Guardians:\n" +
-                                EnumChatFormatting.BLUE + "Sea Witches:\n" +
-                                EnumChatFormatting.GREEN + "Sea Archers:";
-                    countText = EnumChatFormatting.AQUA + nf.format(LootCommand.seaCreaturesSession) + "\n" +
-                                EnumChatFormatting.AQUA + nf.format(LootCommand.fishingMilestoneSession) + "\n" +
-                                EnumChatFormatting.GOLD + nf.format(LootCommand.goodCatchesSession) + "\n" +
-                                EnumChatFormatting.DARK_PURPLE + nf.format(LootCommand.greatCatchesSession) + "\n" +
-                                EnumChatFormatting.GRAY + nf.format(LootCommand.squidsSession) + "\n" +
-                                EnumChatFormatting.GREEN + nf.format(LootCommand.seaWalkersSession) + "\n" +
-                                EnumChatFormatting.DARK_GRAY + nf.format(LootCommand.nightSquidsSession) + "\n" +
-                                EnumChatFormatting.DARK_AQUA + nf.format(LootCommand.seaGuardiansSession) + "\n" +
-                                EnumChatFormatting.BLUE + nf.format(LootCommand.seaWitchesSession) + "\n" +
-                                EnumChatFormatting.GREEN + nf.format(LootCommand.seaArchersSession);
-                    // Seperated to save vertical space
-                    dropsTextTwo = EnumChatFormatting.GREEN + "Monster of Deeps:\n" +
-                                   EnumChatFormatting.YELLOW + "Catfishes:\n" +
-                                   EnumChatFormatting.GOLD + "Carrot Kings:\n" +
-                                   EnumChatFormatting.GRAY + "Sea Leeches:\n" +
-                                   EnumChatFormatting.DARK_PURPLE + "Guardian Defenders:\n" +
-                                   EnumChatFormatting.DARK_PURPLE + "Deep Sea Protectors:\n" +
-                                   EnumChatFormatting.GOLD + "Hydras:\n" +
-                                   EnumChatFormatting.GOLD + "Sea Emperors:\n" +
-                                   EnumChatFormatting.AQUA + "Time Since Emp:\n" +
-                                   EnumChatFormatting.AQUA + "Creatures Since Emp:";
-                    countTextTwo = EnumChatFormatting.GREEN + nf.format(LootCommand.monsterOfTheDeepsSession) + "\n" +
-                                   EnumChatFormatting.YELLOW + nf.format(LootCommand.catfishesSession) + "\n" +
-                                   EnumChatFormatting.GOLD + nf.format(LootCommand.carrotKingsSession) + "\n" +
-                                   EnumChatFormatting.GRAY + nf.format(LootCommand.seaLeechesSession) + "\n" +
-                                   EnumChatFormatting.DARK_PURPLE + nf.format(LootCommand.guardianDefendersSession) + "\n" +
-                                   EnumChatFormatting.DARK_PURPLE + nf.format(LootCommand.deepSeaProtectorsSession) + "\n" +
-                                   EnumChatFormatting.GOLD + nf.format(LootCommand.hydrasSession) + "\n" +
-                                   EnumChatFormatting.GOLD + nf.format(LootCommand.seaEmperorsSession) + "\n" +
-                                   EnumChatFormatting.AQUA + timeBetween + "\n" +
-                                   EnumChatFormatting.AQUA + bossesBetween;
-
-                    if (ToggleCommand.splitFishing) {
-                        new TextRenderer(mc, dropsTextTwo, (int) (MoveCommand.displayXY[0] + (160 * ScaleCommand.displayScale)), MoveCommand.displayXY[1], ScaleCommand.displayScale);
-                        new TextRenderer(mc, countTextTwo, (int) (MoveCommand.displayXY[0] + (270 * ScaleCommand.displayScale)), MoveCommand.displayXY[1], ScaleCommand.displayScale);
-                    } else {
-                        dropsText += "\n" + dropsTextTwo;
-                        countText += "\n" + countTextTwo;
-                    }
-                    break;
-                case "fishing_winter":
-                    if (LootCommand.yetiTime == -1) {
-                        timeBetween = "Never";
-                    } else {
-                        timeBetween = Utils.getTimeBetween(LootCommand.yetiTime, timeNow);
-                    }
-                    if (LootCommand.yetiSCs == -1) {
-                        bossesBetween = "Never";
-                    } else {
-                        bossesBetween = nf.format(LootCommand.yetiSCs);
-                    }
-
-                    dropsText = EnumChatFormatting.AQUA + "Creatures Caught:\n" +
-                                EnumChatFormatting.AQUA + "Fishing Milestone:\n" +
-                                EnumChatFormatting.GOLD + "Good Catches:\n" +
-                                EnumChatFormatting.DARK_PURPLE + "Great Catches:\n" +
-                                EnumChatFormatting.AQUA + "Frozen Steves:\n" +
-                                EnumChatFormatting.WHITE + "Snowmans:\n" +
-                                EnumChatFormatting.DARK_GREEN + "Grinches:\n" +
-                                EnumChatFormatting.GOLD + "Yetis:\n" +
-                                EnumChatFormatting.AQUA + "Time Since Yeti:\n" +
-                                EnumChatFormatting.AQUA + "Creatures Since Yeti:";
-                    countText = EnumChatFormatting.AQUA + nf.format(LootCommand.seaCreatures) + "\n" +
-                                EnumChatFormatting.AQUA + nf.format(LootCommand.fishingMilestone) + "\n" +
-                                EnumChatFormatting.GOLD + nf.format(LootCommand.goodCatches) + "\n" +
-                                EnumChatFormatting.DARK_PURPLE + nf.format(LootCommand.greatCatches) + "\n" +
-                                EnumChatFormatting.AQUA + nf.format(LootCommand.frozenSteves) + "\n" +
-                                EnumChatFormatting.WHITE + nf.format(LootCommand.frostyTheSnowmans) + "\n" +
-                                EnumChatFormatting.DARK_GREEN + nf.format(LootCommand.grinches) + "\n" +
-                                EnumChatFormatting.GOLD + nf.format(LootCommand.yetis) + "\n" +
-                                EnumChatFormatting.AQUA + timeBetween + "\n" +
-                                EnumChatFormatting.AQUA + bossesBetween;
-                    break;
-                case "fishing_winter_session":
-                    if (LootCommand.yetiTimeSession == -1) {
-                        timeBetween = "Never";
-                    } else {
-                        timeBetween = Utils.getTimeBetween(LootCommand.yetiTimeSession, timeNow);
-                    }
-                    if (LootCommand.yetiSCsSession == -1) {
-                        bossesBetween = "Never";
-                    } else {
-                        bossesBetween = nf.format(LootCommand.yetiSCsSession);
-                    }
-
-                    dropsText = EnumChatFormatting.AQUA + "Creatures Caught:\n" +
-                                EnumChatFormatting.AQUA + "Fishing Milestone:\n" +
-                                EnumChatFormatting.GOLD + "Good Catches:\n" +
-                                EnumChatFormatting.DARK_PURPLE + "Great Catches:\n" +
-                                EnumChatFormatting.AQUA + "Frozen Steves:\n" +
-                                EnumChatFormatting.WHITE + "Snowmans:\n" +
-                                EnumChatFormatting.DARK_GREEN + "Grinches:\n" +
-                                EnumChatFormatting.GOLD + "Yetis:\n" +
-                                EnumChatFormatting.AQUA + "Time Since Yeti:\n" +
-                                EnumChatFormatting.AQUA + "Creatures Since Yeti:";
-                    countText = EnumChatFormatting.AQUA + nf.format(LootCommand.seaCreaturesSession) + "\n" +
-                                EnumChatFormatting.AQUA + nf.format(LootCommand.fishingMilestoneSession) + "\n" +
-                                EnumChatFormatting.GOLD + nf.format(LootCommand.goodCatchesSession) + "\n" +
-                                EnumChatFormatting.DARK_PURPLE + nf.format(LootCommand.greatCatchesSession) + "\n" +
-                                EnumChatFormatting.AQUA + nf.format(LootCommand.frozenStevesSession) + "\n" +
-                                EnumChatFormatting.WHITE + nf.format(LootCommand.frostyTheSnowmansSession) + "\n" +
-                                EnumChatFormatting.DARK_GREEN + nf.format(LootCommand.grinchesSession) + "\n" +
-                                EnumChatFormatting.GOLD + nf.format(LootCommand.yetisSession) + "\n" +
-                                EnumChatFormatting.AQUA + timeBetween + "\n" +
-                                EnumChatFormatting.AQUA + bossesBetween;
-                    break;
-                case "fishing_festival":
-                    dropsText = EnumChatFormatting.AQUA + "Creatures Caught:\n" +
-                                EnumChatFormatting.AQUA + "Fishing Milestone:\n" +
-                                EnumChatFormatting.GOLD + "Good Catches:\n" +
-                                EnumChatFormatting.DARK_PURPLE + "Great Catches:\n" +
-                                EnumChatFormatting.LIGHT_PURPLE + "Nurse Sharks:\n" +
-                                EnumChatFormatting.BLUE + "Blue Sharks:\n" +
-                                EnumChatFormatting.GOLD + "Tiger Sharks:\n" +
-                                EnumChatFormatting.WHITE + "Great White Sharks:";
-                    countText = EnumChatFormatting.AQUA + nf.format(LootCommand.seaCreatures) + "\n" +
-                                EnumChatFormatting.AQUA + nf.format(LootCommand.fishingMilestone) + "\n" +
-                                EnumChatFormatting.GOLD + nf.format(LootCommand.goodCatches) + "\n" +
-                                EnumChatFormatting.DARK_PURPLE + nf.format(LootCommand.greatCatches) + "\n" +
-                                EnumChatFormatting.LIGHT_PURPLE + nf.format(LootCommand.nurseSharks) + "\n" +
-                                EnumChatFormatting.BLUE + nf.format(LootCommand.blueSharks) + "\n" +
-                                EnumChatFormatting.GOLD + nf.format(LootCommand.tigerSharks) + "\n" +
-                                EnumChatFormatting.WHITE + nf.format(LootCommand.greatWhiteSharks);
-                    break;
-                case "fishing_festival_session":
-                    dropsText = EnumChatFormatting.AQUA + "Creatures Caught:\n" +
-                                EnumChatFormatting.AQUA + "Fishing Milestone:\n" +
-                                EnumChatFormatting.GOLD + "Good Catches:\n" +
-                                EnumChatFormatting.DARK_PURPLE + "Great Catches:\n" +
-                                EnumChatFormatting.LIGHT_PURPLE + "Nurse Sharks:\n" +
-                                EnumChatFormatting.BLUE + "Blue Sharks:\n" +
-                                EnumChatFormatting.GOLD + "Tiger Sharks:\n" +
-                                EnumChatFormatting.WHITE + "Great White Sharks:";
-                    countText = EnumChatFormatting.AQUA + nf.format(LootCommand.seaCreaturesSession) + "\n" +
-                                EnumChatFormatting.AQUA + nf.format(LootCommand.fishingMilestoneSession) + "\n" +
-                                EnumChatFormatting.GOLD + nf.format(LootCommand.goodCatchesSession) + "\n" +
-                                EnumChatFormatting.DARK_PURPLE + nf.format(LootCommand.greatCatchesSession) + "\n" +
-                                EnumChatFormatting.LIGHT_PURPLE + nf.format(LootCommand.nurseSharksSession) + "\n" +
-                                EnumChatFormatting.BLUE + nf.format(LootCommand.blueSharksSession) + "\n" +
-                                EnumChatFormatting.GOLD + nf.format(LootCommand.tigerSharksSession) + "\n" +
-                                EnumChatFormatting.WHITE + nf.format(LootCommand.greatWhiteSharksSession);
-                    break;
-                case "fishing_spooky":
-                    dropsText = EnumChatFormatting.AQUA + "Creatures Caught:\n" +
-                                EnumChatFormatting.AQUA + "Fishing Milestone:\n" +
-                                EnumChatFormatting.GOLD + "Good Catches:\n" +
-                                EnumChatFormatting.DARK_PURPLE + "Great Catches:\n" +
-                                EnumChatFormatting.BLUE + "Scarecrows:\n" +
-                                EnumChatFormatting.GRAY + "Nightmares:\n" +
-                                EnumChatFormatting.DARK_PURPLE + "Werewolves:\n" +
-                                EnumChatFormatting.GOLD + "Phantom Fishers:\n" +
-                                EnumChatFormatting.GOLD + "Grim Reapers:";
-                    countText = EnumChatFormatting.AQUA + nf.format(LootCommand.seaCreatures) + "\n" +
-                                EnumChatFormatting.AQUA + nf.format(LootCommand.fishingMilestone) + "\n" +
-                                EnumChatFormatting.GOLD + nf.format(LootCommand.goodCatches) + "\n" +
-                                EnumChatFormatting.DARK_PURPLE + nf.format(LootCommand.greatCatches) + "\n" +
-                                EnumChatFormatting.BLUE + nf.format(LootCommand.scarecrows) + "\n" +
-                                EnumChatFormatting.GRAY + nf.format(LootCommand.nightmares) + "\n" +
-                                EnumChatFormatting.DARK_PURPLE + nf.format(LootCommand.werewolfs) + "\n" +
-                                EnumChatFormatting.GOLD + nf.format(LootCommand.phantomFishers) + "\n" +
-                                EnumChatFormatting.GOLD + nf.format(LootCommand.grimReapers);
-                    break;
-                case "fishing_spooky_session":
-                    dropsText = EnumChatFormatting.AQUA + "Creatures Caught:\n" +
-                                EnumChatFormatting.AQUA + "Fishing Milestone:\n" +
-                                EnumChatFormatting.GOLD + "Good Catches:\n" +
-                                EnumChatFormatting.DARK_PURPLE + "Great Catches:\n" +
-                                EnumChatFormatting.BLUE + "Scarecrows:\n" +
-                                EnumChatFormatting.GRAY + "Nightmares:\n" +
-                                EnumChatFormatting.DARK_PURPLE + "Werewolves:\n" +
-                                EnumChatFormatting.GOLD + "Phantom Fishers:\n" +
-                                EnumChatFormatting.GOLD + "Grim Reapers:";
-                    countText = EnumChatFormatting.AQUA + nf.format(LootCommand.seaCreaturesSession) + "\n" +
-                                EnumChatFormatting.AQUA + nf.format(LootCommand.fishingMilestoneSession) + "\n" +
-                                EnumChatFormatting.GOLD + nf.format(LootCommand.goodCatchesSession) + "\n" +
-                                EnumChatFormatting.DARK_PURPLE + nf.format(LootCommand.greatCatchesSession) + "\n" +
-                                EnumChatFormatting.BLUE + nf.format(LootCommand.scarecrowsSession) + "\n" +
-                                EnumChatFormatting.GRAY + nf.format(LootCommand.nightmaresSession) + "\n" +
-                                EnumChatFormatting.DARK_PURPLE + nf.format(LootCommand.werewolfsSession) + "\n" +
-                                EnumChatFormatting.GOLD + nf.format(LootCommand.phantomFishersSession) + "\n" +
-                                EnumChatFormatting.GOLD + nf.format(LootCommand.grimReapersSession);
-                    break;
-                case "mythological":
-                    dropsText = EnumChatFormatting.GOLD + "Coins:\n" +
-                                EnumChatFormatting.WHITE + "Griffin Feathers:\n" +
-                                EnumChatFormatting.GOLD + "Crown of Greeds:\n" +
-                                EnumChatFormatting.AQUA + "Washed up Souvenirs:\n" +
-                                EnumChatFormatting.RED + "Minos Hunters:\n" +
-                                EnumChatFormatting.GRAY + "Siamese Lynxes:\n" +
-                                EnumChatFormatting.RED + "Minotaurs:\n" +
-                                EnumChatFormatting.WHITE + "Gaia Constructs:\n" +
-                                EnumChatFormatting.DARK_PURPLE + "Minos Champions:\n" +
-                                EnumChatFormatting.GOLD + "Minos Inquisitors:";
-                    countText = EnumChatFormatting.GOLD + nf.format(LootCommand.mythCoins) + "\n" +
-                                EnumChatFormatting.WHITE + nf.format(LootCommand.griffinFeathers) + "\n" +
-                                EnumChatFormatting.GOLD + nf.format(LootCommand.crownOfGreeds) + "\n" +
-                                EnumChatFormatting.AQUA + nf.format(LootCommand.washedUpSouvenirs) + "\n" +
-                                EnumChatFormatting.RED + nf.format(LootCommand.minosHunters) + "\n" +
-                                EnumChatFormatting.GRAY + nf.format(LootCommand.siameseLynxes) + "\n" +
-                                EnumChatFormatting.RED + nf.format(LootCommand.minotaurs) + "\n" +
-                                EnumChatFormatting.WHITE + nf.format(LootCommand.gaiaConstructs) + "\n" +
-                                EnumChatFormatting.DARK_PURPLE + nf.format(LootCommand.minosChampions) + "\n" +
-                                EnumChatFormatting.GOLD + nf.format(LootCommand.minosInquisitors);
-                    break;
-                case "mythological_session":
-                    dropsText = EnumChatFormatting.GOLD + "Coins:\n" +
-                                EnumChatFormatting.WHITE + "Griffin Feathers:\n" +
-                                EnumChatFormatting.GOLD + "Crown of Greeds:\n" +
-                                EnumChatFormatting.AQUA + "Washed up Souvenirs:\n" +
-                                EnumChatFormatting.RED + "Minos Hunters:\n" +
-                                EnumChatFormatting.GRAY + "Siamese Lynxes:\n" +
-                                EnumChatFormatting.RED + "Minotaurs:\n" +
-                                EnumChatFormatting.WHITE + "Gaia Constructs:\n" +
-                                EnumChatFormatting.DARK_PURPLE + "Minos Champions:\n" +
-                                EnumChatFormatting.GOLD + "Minos Inquisitors:";
-                    countText = EnumChatFormatting.GOLD + nf.format(LootCommand.mythCoinsSession) + "\n" +
-                                EnumChatFormatting.WHITE + nf.format(LootCommand.griffinFeathersSession) + "\n" +
-                                EnumChatFormatting.GOLD + nf.format(LootCommand.crownOfGreedsSession) + "\n" +
-                                EnumChatFormatting.AQUA + nf.format(LootCommand.washedUpSouvenirsSession) + "\n" +
-                                EnumChatFormatting.RED + nf.format(LootCommand.minosHuntersSession) + "\n" +
-                                EnumChatFormatting.GRAY + nf.format(LootCommand.siameseLynxesSession) + "\n" +
-                                EnumChatFormatting.RED + nf.format(LootCommand.minotaursSession) + "\n" +
-                                EnumChatFormatting.WHITE + nf.format(LootCommand.gaiaConstructsSession) + "\n" +
-                                EnumChatFormatting.DARK_PURPLE + nf.format(LootCommand.minosChampionsSession) + "\n" +
-                                EnumChatFormatting.GOLD + nf.format(LootCommand.minosInquisitorsSession);
-                    break;
-                case "catacombs_floor_one":
-                    dropsText = EnumChatFormatting.GOLD + "Recombobulators:\n" +
-                                EnumChatFormatting.DARK_PURPLE + "Fuming Potato Books:\n" +
-                                EnumChatFormatting.BLUE + "Bonzo's Staffs:\n" +
-                                EnumChatFormatting.AQUA + "Coins Spent:\n" +
-                                EnumChatFormatting.AQUA + "Time Spent:";
-                    countText = EnumChatFormatting.GOLD + nf.format(LootCommand.recombobulators) + "\n" +
-                                EnumChatFormatting.DARK_PURPLE + nf.format(LootCommand.fumingPotatoBooks) + "\n" +
-                                EnumChatFormatting.BLUE + nf.format(LootCommand.bonzoStaffs) + "\n" +
-                                EnumChatFormatting.AQUA + Utils.getMoneySpent(LootCommand.f1CoinsSpent) + "\n" +
-                                EnumChatFormatting.AQUA + Utils.getTimeBetween(0, LootCommand.f1TimeSpent);
-                    break;
-                case "catacombs_floor_one_session":
-                    dropsText = EnumChatFormatting.GOLD + "Recombobulators:\n" +
-                                EnumChatFormatting.DARK_PURPLE + "Fuming Potato Books:\n" +
-                                EnumChatFormatting.BLUE + "Bonzo's Staffs:\n" +
-                                EnumChatFormatting.AQUA + "Coins Spent:\n" +
-                                EnumChatFormatting.AQUA + "Time Spent:";
-                    countText = EnumChatFormatting.GOLD + nf.format(LootCommand.recombobulatorsSession) + "\n" +
-                                EnumChatFormatting.DARK_PURPLE + nf.format(LootCommand.fumingPotatoBooksSession) + "\n" +
-                                EnumChatFormatting.BLUE + nf.format(LootCommand.bonzoStaffsSession) + "\n" +
-                                EnumChatFormatting.AQUA + Utils.getMoneySpent(LootCommand.f1CoinsSpentSession) + "\n" +
-                                EnumChatFormatting.AQUA + Utils.getTimeBetween(0, LootCommand.f1TimeSpentSession);
-                    break;
-                case "catacombs_floor_two":
-                    dropsText = EnumChatFormatting.GOLD + "Recombobulators:\n" +
-                                EnumChatFormatting.DARK_PURPLE + "Fuming Potato Books:\n" +
-                                EnumChatFormatting.BLUE + "Scarf's Studies:\n" +
-                                EnumChatFormatting.DARK_PURPLE + "Adaptive Blades:\n" +
-                                EnumChatFormatting.AQUA + "Coins Spent:\n" +
-                                EnumChatFormatting.AQUA + "Time Spent:";
-                    countText = EnumChatFormatting.GOLD + nf.format(LootCommand.recombobulators) + "\n" +
-                                EnumChatFormatting.DARK_PURPLE + nf.format(LootCommand.fumingPotatoBooks) + "\n" +
-                                EnumChatFormatting.BLUE + nf.format(LootCommand.scarfStudies) + "\n" +
-                                EnumChatFormatting.DARK_PURPLE + nf.format(LootCommand.adaptiveSwords) + "\n" +
-                                EnumChatFormatting.AQUA + Utils.getMoneySpent(LootCommand.f2CoinsSpent) + "\n" +
-                                EnumChatFormatting.AQUA + Utils.getTimeBetween(0, LootCommand.f2TimeSpent);
-                    break;
-                case "catacombs_floor_two_session":
-                    dropsText = EnumChatFormatting.GOLD + "Recombobulators:\n" +
-                                EnumChatFormatting.DARK_PURPLE + "Fuming Potato Books:\n" +
-                                EnumChatFormatting.BLUE + "Scarf's Studies:\n" +
-                                EnumChatFormatting.DARK_PURPLE + "Adaptive Blades:\n" +
-                                EnumChatFormatting.AQUA + "Coins Spent:\n" +
-                                EnumChatFormatting.AQUA + "Time Spent:";
-                    countText = EnumChatFormatting.GOLD + nf.format(LootCommand.recombobulatorsSession) + "\n" +
-                                EnumChatFormatting.DARK_PURPLE + nf.format(LootCommand.fumingPotatoBooksSession) + "\n" +
-                                EnumChatFormatting.BLUE + nf.format(LootCommand.scarfStudiesSession) + "\n" +
-                                EnumChatFormatting.DARK_PURPLE + nf.format(LootCommand.adaptiveSwordsSession) + "\n" +
-                                EnumChatFormatting.AQUA + Utils.getMoneySpent(LootCommand.f2CoinsSpentSession) + "\n" +
-                                EnumChatFormatting.AQUA + Utils.getTimeBetween(0, LootCommand.f2TimeSpentSession);
-                    break;
-                case "catacombs_floor_three":
-                    dropsText = EnumChatFormatting.GOLD + "Recombobulators:\n" +
-                                EnumChatFormatting.DARK_PURPLE + "Fuming Potato Books:\n" +
-                                EnumChatFormatting.DARK_PURPLE + "Adaptive Helmets:\n" +
-                                EnumChatFormatting.DARK_PURPLE + "Adaptive Chestplates:\n" +
-                                EnumChatFormatting.DARK_PURPLE + "Adaptive Leggings:\n" +
-                                EnumChatFormatting.DARK_PURPLE + "Adaptive Boots:\n" +
-                                EnumChatFormatting.AQUA + "Coins Spent:\n" +
-                                EnumChatFormatting.AQUA + "Time Spent:";
-                    countText = EnumChatFormatting.GOLD + nf.format(LootCommand.recombobulators) + "\n" +
-                                EnumChatFormatting.DARK_PURPLE + nf.format(LootCommand.fumingPotatoBooks) + "\n" +
-                                EnumChatFormatting.DARK_PURPLE + nf.format(LootCommand.adaptiveHelms) + "\n" +
-                                EnumChatFormatting.DARK_PURPLE + nf.format(LootCommand.adaptiveChests) + "\n" +
-                                EnumChatFormatting.DARK_PURPLE + nf.format(LootCommand.adaptiveLegs) + "\n" +
-                                EnumChatFormatting.DARK_PURPLE + nf.format(LootCommand.adaptiveBoots) + "\n" +
-                                EnumChatFormatting.AQUA + Utils.getMoneySpent(LootCommand.f3CoinsSpent) + "\n" +
-                                EnumChatFormatting.AQUA + Utils.getTimeBetween(0, LootCommand.f3TimeSpent);
-                    break;
-                case "catacombs_floor_three_session":
-                    dropsText = EnumChatFormatting.GOLD + "Recombobulators:\n" +
-                                EnumChatFormatting.DARK_PURPLE + "Fuming Potato Books:\n" +
-                                EnumChatFormatting.DARK_PURPLE + "Adaptive Helmets:\n" +
-                                EnumChatFormatting.DARK_PURPLE + "Adaptive Chestplates:\n" +
-                                EnumChatFormatting.DARK_PURPLE + "Adaptive Leggings:\n" +
-                                EnumChatFormatting.DARK_PURPLE + "Adaptive Boots:\n" +
-                                EnumChatFormatting.AQUA + "Coins Spent:\n" +
-                                EnumChatFormatting.AQUA + "Time Spent:";
-                    countText = EnumChatFormatting.GOLD + nf.format(LootCommand.recombobulatorsSession) + "\n" +
-                                EnumChatFormatting.DARK_PURPLE + nf.format(LootCommand.fumingPotatoBooksSession) + "\n" +
-                                EnumChatFormatting.DARK_PURPLE + nf.format(LootCommand.adaptiveHelmsSession) + "\n" +
-                                EnumChatFormatting.DARK_PURPLE + nf.format(LootCommand.adaptiveChestsSession) + "\n" +
-                                EnumChatFormatting.DARK_PURPLE + nf.format(LootCommand.adaptiveLegsSession) + "\n" +
-                                EnumChatFormatting.DARK_PURPLE + nf.format(LootCommand.adaptiveBootsSession) + "\n" +
-                                EnumChatFormatting.AQUA + Utils.getMoneySpent(LootCommand.f3CoinsSpentSession) + "\n" +
-                                EnumChatFormatting.AQUA + Utils.getTimeBetween(0, LootCommand.f3TimeSpentSession);
-                    break;
-                case "catacombs_floor_four":
-                    dropsText = EnumChatFormatting.GOLD + "Recombobulators:\n" +
-                                EnumChatFormatting.DARK_PURPLE + "Fuming Potato Books:\n" +
-                                EnumChatFormatting.DARK_PURPLE + "Spirit Wings:\n" +
-                                EnumChatFormatting.DARK_PURPLE + "Spirit Bones:\n" +
-                                EnumChatFormatting.DARK_PURPLE + "Spirit Boots:\n" +
-                                EnumChatFormatting.DARK_PURPLE + "Spirit Swords:\n" +
-                                EnumChatFormatting.GOLD + "Spirit Bows:\n" +
-                                EnumChatFormatting.DARK_PURPLE + "Epic Spirit Pets:\n" +
-                                EnumChatFormatting.GOLD + "Leg Spirit Pets:\n" +
-                                EnumChatFormatting.AQUA + "Coins Spent:\n" +
-                                EnumChatFormatting.AQUA + "Time Spent:";
-                    countText = EnumChatFormatting.GOLD + nf.format(LootCommand.recombobulators) + "\n" +
-                                EnumChatFormatting.DARK_PURPLE + nf.format(LootCommand.fumingPotatoBooks) + "\n" +
-                                EnumChatFormatting.DARK_PURPLE + nf.format(LootCommand.spiritWings) + "\n" +
-                                EnumChatFormatting.DARK_PURPLE + nf.format(LootCommand.spiritBones) + "\n" +
-                                EnumChatFormatting.DARK_PURPLE + nf.format(LootCommand.spiritBoots) + "\n" +
-                                EnumChatFormatting.DARK_PURPLE + nf.format(LootCommand.spiritSwords) + "\n" +
-                                EnumChatFormatting.GOLD + nf.format(LootCommand.spiritBows) + "\n" +
-                                EnumChatFormatting.DARK_PURPLE + nf.format(LootCommand.epicSpiritPets) + "\n" +
-                                EnumChatFormatting.GOLD + nf.format(LootCommand.legSpiritPets) + "\n" +
-                                EnumChatFormatting.AQUA + Utils.getMoneySpent(LootCommand.f4CoinsSpent) + "\n" +
-                                EnumChatFormatting.AQUA + Utils.getTimeBetween(0, LootCommand.f4TimeSpent);
-                    break;
-                case "catacombs_floor_four_session":
-                    dropsText = EnumChatFormatting.GOLD + "Recombobulators:\n" +
-                                EnumChatFormatting.DARK_PURPLE + "Fuming Potato Books:\n" +
-                                EnumChatFormatting.DARK_PURPLE + "Spirit Wings:\n" +
-                                EnumChatFormatting.DARK_PURPLE + "Spirit Bones:\n" +
-                                EnumChatFormatting.DARK_PURPLE + "Spirit Boots:\n" +
-                                EnumChatFormatting.DARK_PURPLE + "Spirit Swords:\n" +
-                                EnumChatFormatting.GOLD + "Spirit Bows:\n" +
-                                EnumChatFormatting.DARK_PURPLE + "Epic Spirit Pets:\n" +
-                                EnumChatFormatting.GOLD + "Leg Spirit Pets:\n" +
-                                EnumChatFormatting.AQUA + "Coins Spent:\n" +
-                                EnumChatFormatting.AQUA + "Time Spent:";
-                    countText = EnumChatFormatting.GOLD + nf.format(LootCommand.recombobulatorsSession) + "\n" +
-                                EnumChatFormatting.DARK_PURPLE + nf.format(LootCommand.fumingPotatoBooksSession) + "\n" +
-                                EnumChatFormatting.DARK_PURPLE + nf.format(LootCommand.spiritWingsSession) + "\n" +
-                                EnumChatFormatting.DARK_PURPLE + nf.format(LootCommand.spiritBonesSession) + "\n" +
-                                EnumChatFormatting.DARK_PURPLE + nf.format(LootCommand.spiritBootsSession) + "\n" +
-                                EnumChatFormatting.DARK_PURPLE + nf.format(LootCommand.spiritSwordsSession) + "\n" +
-                                EnumChatFormatting.GOLD + nf.format(LootCommand.spiritBowsSession) + "\n" +
-                                EnumChatFormatting.DARK_PURPLE + nf.format(LootCommand.epicSpiritPetsSession) + "\n" +
-                                EnumChatFormatting.GOLD + nf.format(LootCommand.legSpiritPetsSession) + "\n" +
-                                EnumChatFormatting.AQUA + Utils.getMoneySpent(LootCommand.f4CoinsSpentSession) + "\n" +
-                                EnumChatFormatting.AQUA + Utils.getTimeBetween(0, LootCommand.f4TimeSpentSession);
-                    break;
-                case "catacombs_floor_five":
-                    dropsText = EnumChatFormatting.GOLD + "Recombobulators:\n" +
-                                EnumChatFormatting.DARK_PURPLE + "Fuming Potato Books:\n" +
-                                EnumChatFormatting.BLUE + "Warped Stones:\n" +
-                                EnumChatFormatting.DARK_PURPLE + "Shadow Helmets:\n" +
-                                EnumChatFormatting.DARK_PURPLE + "Shadow Chestplates:\n" +
-                                EnumChatFormatting.DARK_PURPLE + "Shadow Leggings:\n" +
-                                EnumChatFormatting.DARK_PURPLE + "Shadow Boots:\n" +
-                                EnumChatFormatting.GOLD + "Last Breaths:\n" +
-                                EnumChatFormatting.GOLD + "Livid Daggers:\n" +
-                                EnumChatFormatting.GOLD + "Shadow Furys:\n" +
-                                EnumChatFormatting.AQUA + "Coins Spent:\n" +
-                                EnumChatFormatting.AQUA + "Time Spent:";
-                    countText = EnumChatFormatting.GOLD + nf.format(LootCommand.recombobulators) + "\n" +
-                                EnumChatFormatting.DARK_PURPLE + nf.format(LootCommand.fumingPotatoBooks) + "\n" +
-                                EnumChatFormatting.BLUE + nf.format(LootCommand.warpedStones) + "\n" +
-                                EnumChatFormatting.DARK_PURPLE + nf.format(LootCommand.shadowAssHelms) + "\n" +
-                                EnumChatFormatting.DARK_PURPLE + nf.format(LootCommand.shadowAssChests) + "\n" +
-                                EnumChatFormatting.DARK_PURPLE + nf.format(LootCommand.shadowAssLegs) + "\n" +
-                                EnumChatFormatting.DARK_PURPLE + nf.format(LootCommand.shadowAssBoots) + "\n" +
-                                EnumChatFormatting.GOLD + nf.format(LootCommand.lastBreaths) + "\n" +
-                                EnumChatFormatting.GOLD + nf.format(LootCommand.lividDaggers) + "\n" +
-                                EnumChatFormatting.GOLD + nf.format(LootCommand.shadowFurys) + "\n" +
-                                EnumChatFormatting.AQUA + Utils.getMoneySpent(LootCommand.f5CoinsSpent) + "\n" +
-                                EnumChatFormatting.AQUA + Utils.getTimeBetween(0, LootCommand.f5TimeSpent);
-                    break;
-                case "catacombs_floor_five_session":
-                    dropsText = EnumChatFormatting.GOLD + "Recombobulators:\n" +
-                                EnumChatFormatting.DARK_PURPLE + "Fuming Potato Books:\n" +
-                                EnumChatFormatting.BLUE + "Warped Stones:\n" +
-                                EnumChatFormatting.DARK_PURPLE + "Shadow Helmets:\n" +
-                                EnumChatFormatting.DARK_PURPLE + "Shadow Chestplates:\n" +
-                                EnumChatFormatting.DARK_PURPLE + "Shadow Leggings:\n" +
-                                EnumChatFormatting.DARK_PURPLE + "Shadow Boots:\n" +
-                                EnumChatFormatting.GOLD + "Last Breaths:\n" +
-                                EnumChatFormatting.GOLD + "Livid Daggers:\n" +
-                                EnumChatFormatting.GOLD + "Shadow Furys:\n" +
-                                EnumChatFormatting.AQUA + "Coins Spent:\n" +
-                                EnumChatFormatting.AQUA + "Time Spent:";
-                    countText = EnumChatFormatting.GOLD + nf.format(LootCommand.recombobulatorsSession) + "\n" +
-                                EnumChatFormatting.DARK_PURPLE + nf.format(LootCommand.fumingPotatoBooksSession) + "\n" +
-                                EnumChatFormatting.BLUE + nf.format(LootCommand.warpedStonesSession) + "\n" +
-                                EnumChatFormatting.DARK_PURPLE + nf.format(LootCommand.shadowAssHelmsSession) + "\n" +
-                                EnumChatFormatting.DARK_PURPLE + nf.format(LootCommand.shadowAssChestsSession) + "\n" +
-                                EnumChatFormatting.DARK_PURPLE + nf.format(LootCommand.shadowAssLegsSession) + "\n" +
-                                EnumChatFormatting.DARK_PURPLE + nf.format(LootCommand.shadowAssBootsSession) + "\n" +
-                                EnumChatFormatting.GOLD + nf.format(LootCommand.lastBreathsSession) + "\n" +
-                                EnumChatFormatting.GOLD + nf.format(LootCommand.lividDaggersSession) + "\n" +
-                                EnumChatFormatting.GOLD + nf.format(LootCommand.shadowFurysSession) + "\n" +
-                                EnumChatFormatting.AQUA + Utils.getMoneySpent(LootCommand.f5CoinsSpentSession) + "\n" +
-                                EnumChatFormatting.AQUA + Utils.getTimeBetween(0, LootCommand.f5TimeSpentSession);
-                    break;
-                case "catacombs_floor_six":
-                    dropsText = EnumChatFormatting.GOLD + "Recombobulators:\n" +
-                                EnumChatFormatting.DARK_PURPLE + "Fuming Potato Books:\n" +
-                                EnumChatFormatting.BLUE + "Ancient Roses:\n" +
-                                EnumChatFormatting.GOLD + "Precursor Eyes:\n" +
-                                EnumChatFormatting.GOLD + "Giant's Swords:\n" +
-                                EnumChatFormatting.GOLD + "Necro Lord Helmets:\n" +
-                                EnumChatFormatting.GOLD + "Necro Lord Chests:\n" +
-                                EnumChatFormatting.GOLD + "Necro Lord Leggings:\n" +
-                                EnumChatFormatting.GOLD + "Necro Lord Boots:\n" +
-                                EnumChatFormatting.GOLD + "Necro Swords:\n" +
-                                EnumChatFormatting.AQUA + "Coins Spent:\n" +
-                                EnumChatFormatting.AQUA + "Time Spent:";
-                    countText = EnumChatFormatting.GOLD + nf.format(LootCommand.recombobulators) + "\n" +
-                                EnumChatFormatting.DARK_PURPLE + nf.format(LootCommand.fumingPotatoBooks) + "\n" +
-                                EnumChatFormatting.BLUE + nf.format(LootCommand.ancientRoses) + "\n" +
-                                EnumChatFormatting.GOLD + nf.format(LootCommand.precursorEyes) + "\n" +
-                                EnumChatFormatting.GOLD + nf.format(LootCommand.giantsSwords) + "\n" +
-                                EnumChatFormatting.GOLD + nf.format(LootCommand.necroLordHelms) + "\n" +
-                                EnumChatFormatting.GOLD + nf.format(LootCommand.necroLordChests) + "\n" +
-                                EnumChatFormatting.GOLD + nf.format(LootCommand.necroLordLegs) + "\n" +
-                                EnumChatFormatting.GOLD + nf.format(LootCommand.necroLordBoots) + "\n" +
-                                EnumChatFormatting.GOLD + nf.format(LootCommand.necroSwords) + "\n" +
-                                EnumChatFormatting.AQUA + Utils.getMoneySpent(LootCommand.f6CoinsSpent) + "\n" +
-                                EnumChatFormatting.AQUA + Utils.getTimeBetween(0, LootCommand.f6TimeSpent);
-                    break;
-                case "catacombs_floor_six_session":
-                    dropsText = EnumChatFormatting.GOLD + "Recombobulators:\n" +
-                                EnumChatFormatting.DARK_PURPLE + "Fuming Potato Books:\n" +
-                                EnumChatFormatting.BLUE + "Ancient Roses:\n" +
-                                EnumChatFormatting.GOLD + "Precursor Eyes:\n" +
-                                EnumChatFormatting.GOLD + "Giant's Swords:\n" +
-                                EnumChatFormatting.GOLD + "Necro Lord Helmets:\n" +
-                                EnumChatFormatting.GOLD + "Necro Lord Chests:\n" +
-                                EnumChatFormatting.GOLD + "Necro Lord Leggings:\n" +
-                                EnumChatFormatting.GOLD + "Necro Lord Boots:\n" +
-                                EnumChatFormatting.GOLD + "Necro Swords:\n" +
-                                EnumChatFormatting.AQUA + "Coins Spent:\n" +
-                                EnumChatFormatting.AQUA + "Time Spent:";
-                    countText = EnumChatFormatting.GOLD + nf.format(LootCommand.recombobulatorsSession) + "\n" +
-                                EnumChatFormatting.DARK_PURPLE + nf.format(LootCommand.fumingPotatoBooksSession) + "\n" +
-                                EnumChatFormatting.BLUE + nf.format(LootCommand.ancientRosesSession) + "\n" +
-                                EnumChatFormatting.GOLD + nf.format(LootCommand.precursorEyesSession) + "\n" +
-                                EnumChatFormatting.GOLD + nf.format(LootCommand.giantsSwordsSession) + "\n" +
-                                EnumChatFormatting.GOLD + nf.format(LootCommand.necroLordHelmsSession) + "\n" +
-                                EnumChatFormatting.GOLD + nf.format(LootCommand.necroLordChestsSession) + "\n" +
-                                EnumChatFormatting.GOLD + nf.format(LootCommand.necroLordLegsSession) + "\n" +
-                                EnumChatFormatting.GOLD + nf.format(LootCommand.necroLordBootsSession) + "\n" +
-                                EnumChatFormatting.GOLD + nf.format(LootCommand.necroSwordsSession) + "\n" +
-                                EnumChatFormatting.AQUA + Utils.getMoneySpent(LootCommand.f6CoinsSpentSession) + "\n" +
-                                EnumChatFormatting.AQUA + Utils.getTimeBetween(0, LootCommand.f6TimeSpentSession);
-                    break;
-                case "catacombs_floor_seven":
-                    dropsText = EnumChatFormatting.GOLD + "Recombobulators:\n" +
-                                EnumChatFormatting.DARK_PURPLE + "Fuming Potato Books:\n" +
-                                EnumChatFormatting.DARK_PURPLE + "Wither Bloods:\n" +
-                                EnumChatFormatting.DARK_PURPLE + "Wither Cloaks:\n" +
-                                EnumChatFormatting.DARK_PURPLE + "Implosions:\n" +
-                                EnumChatFormatting.DARK_PURPLE + "Wither Shields:\n" +
-                                EnumChatFormatting.DARK_PURPLE + "Shadow Warps:\n" +
-                                EnumChatFormatting.DARK_PURPLE + "Necron's Handles:\n" +
-                                EnumChatFormatting.GOLD + "Auto Recombobs:\n" +
-                                EnumChatFormatting.GOLD + "Wither Helmets:\n" +
-                                EnumChatFormatting.GOLD + "Wither Chests:\n" +
-                                EnumChatFormatting.GOLD + "Wither Leggings:\n" +
-                                EnumChatFormatting.GOLD + "Wither Boots:\n" +
-                                EnumChatFormatting.AQUA + "Coins Spent:\n" +
-                                EnumChatFormatting.AQUA + "Time Spent:";
-                    countText = EnumChatFormatting.GOLD + nf.format(LootCommand.recombobulators) + "\n" +
-                                EnumChatFormatting.DARK_PURPLE + nf.format(LootCommand.fumingPotatoBooks) + "\n" +
-                                EnumChatFormatting.DARK_PURPLE + nf.format(LootCommand.witherBloods) + "\n" +
-                                EnumChatFormatting.DARK_PURPLE + nf.format(LootCommand.witherCloaks) + "\n" +
-                                EnumChatFormatting.DARK_PURPLE + nf.format(LootCommand.implosions) + "\n" +
-                                EnumChatFormatting.DARK_PURPLE + nf.format(LootCommand.witherShields) + "\n" +
-                                EnumChatFormatting.DARK_PURPLE + nf.format(LootCommand.shadowWarps) + "\n" +
-                                EnumChatFormatting.DARK_PURPLE + nf.format(LootCommand.necronsHandles) + "\n" +
-                                EnumChatFormatting.GOLD + nf.format(LootCommand.autoRecombs) + "\n" +
-                                EnumChatFormatting.GOLD + nf.format(LootCommand.witherHelms) + "\n" +
-                                EnumChatFormatting.GOLD + nf.format(LootCommand.witherChests) + "\n" +
-                                EnumChatFormatting.GOLD + nf.format(LootCommand.witherLegs) + "\n" +
-                                EnumChatFormatting.GOLD + nf.format(LootCommand.witherBoots) + "\n" +
-                                EnumChatFormatting.AQUA + Utils.getMoneySpent(LootCommand.f7CoinsSpent) + "\n" +
-                                EnumChatFormatting.AQUA + Utils.getTimeBetween(0, LootCommand.f7TimeSpent);
-                    break;
-                case "catacombs_floor_seven_session":
-                    dropsText = EnumChatFormatting.GOLD + "Recombobulators:\n" +
-                                EnumChatFormatting.DARK_PURPLE + "Fuming Potato Books:\n" +
-                                EnumChatFormatting.DARK_PURPLE + "Wither Bloods:\n" +
-                                EnumChatFormatting.DARK_PURPLE + "Wither Cloaks:\n" +
-                                EnumChatFormatting.DARK_PURPLE + "Implosions:\n" +
-                                EnumChatFormatting.DARK_PURPLE + "Wither Shields:\n" +
-                                EnumChatFormatting.DARK_PURPLE + "Shadow Warps:\n" +
-                                EnumChatFormatting.DARK_PURPLE + "Necron's Handles:\n" +
-                                EnumChatFormatting.GOLD + "Auto Recombobulators:\n" +
-                                EnumChatFormatting.GOLD + "Wither Helmets:\n" +
-                                EnumChatFormatting.GOLD + "Wither Chests:\n" +
-                                EnumChatFormatting.GOLD + "Wither Leggings:\n" +
-                                EnumChatFormatting.GOLD + "Wither Boots:\n" +
-                                EnumChatFormatting.AQUA + "Coins Spent:\n" +
-                                EnumChatFormatting.AQUA + "Time Spent:";
-                    countText = EnumChatFormatting.GOLD + nf.format(LootCommand.recombobulatorsSession) + "\n" +
-                                EnumChatFormatting.DARK_PURPLE + nf.format(LootCommand.fumingPotatoBooksSession) + "\n" +
-                                EnumChatFormatting.DARK_PURPLE + nf.format(LootCommand.witherBloodsSession) + "\n" +
-                                EnumChatFormatting.DARK_PURPLE + nf.format(LootCommand.witherCloaksSession) + "\n" +
-                                EnumChatFormatting.DARK_PURPLE + nf.format(LootCommand.implosionsSession) + "\n" +
-                                EnumChatFormatting.DARK_PURPLE + nf.format(LootCommand.witherShieldsSession) + "\n" +
-                                EnumChatFormatting.DARK_PURPLE + nf.format(LootCommand.shadowWarpsSession) + "\n" +
-                                EnumChatFormatting.DARK_PURPLE + nf.format(LootCommand.necronsHandlesSession) + "\n" +
-                                EnumChatFormatting.GOLD + nf.format(LootCommand.autoRecombsSession) + "\n" +
-                                EnumChatFormatting.GOLD + nf.format(LootCommand.witherHelmsSession) + "\n" +
-                                EnumChatFormatting.GOLD + nf.format(LootCommand.witherChestsSession) + "\n" +
-                                EnumChatFormatting.GOLD + nf.format(LootCommand.witherLegsSession) + "\n" +
-                                EnumChatFormatting.GOLD + nf.format(LootCommand.witherBootsSession) + "\n" +
-                                EnumChatFormatting.AQUA + Utils.getMoneySpent(LootCommand.f7CoinsSpentSession) + "\n" +
-                                EnumChatFormatting.AQUA + Utils.getTimeBetween(0, LootCommand.f7TimeSpentSession);
-                    break;
-                default:
-                    System.out.println("Display was an unknown value, turning off.");
-                    DisplayCommand.display = "off";
-                    ConfigHandler.writeStringConfig("misc", "display", "off");
-            }
-            new TextRenderer(mc, dropsText, MoveCommand.displayXY[0], MoveCommand.displayXY[1], ScaleCommand.displayScale);
-            new TextRenderer(mc, countText, (int) (MoveCommand.displayXY[0] + (110 * ScaleCommand.displayScale)), MoveCommand.displayXY[1], ScaleCommand.displayScale);
-        }
-
+    @SubscribeEvent
+    public void renderPlayerInfo(RenderOverlay event) {
         if (showTitle) {
             Utils.drawTitle(titleText);
         }
@@ -2493,9 +1409,7 @@ public class DankersSkyblockMod {
     public void onTick(TickEvent.ClientTickEvent event) {
         if (event.phase != Phase.START) return;
 
-        Minecraft mc = Minecraft.getMinecraft();
-        World world = mc.theWorld;
-        EntityPlayerSP player = mc.thePlayer;
+        EntityPlayerSP player = Minecraft.getMinecraft().thePlayer;
 
         if (mc.currentScreen == null && System.currentTimeMillis() - lastInteractTime >= 250L) {
             slotIn = -1;
@@ -2982,7 +1896,7 @@ public class DankersSkyblockMod {
             Minecraft mc = Minecraft.getMinecraft();
             if (guiToOpen.startsWith("dankergui")) {
                 int page = Character.getNumericValue(guiToOpen.charAt(guiToOpen.length() - 1));
-                mc.displayGuiScreen(new DankerGui(page));
+                mc.displayGuiScreen(new DankerGui(page, ""));
             } else {
                 switch (guiToOpen) {
                     case "displaygui":
@@ -3003,6 +1917,9 @@ public class DankersSkyblockMod {
                     case "skilltracker":
                         mc.displayGuiScreen(new SkillTrackerGui());
                         break;
+                    case "custommusic":
+                        mc.displayGuiScreen(new CustomMusicGui());
+                        break;
                 }
             }
             guiToOpen = null;
@@ -3010,191 +1927,9 @@ public class DankersSkyblockMod {
     }
 
     @SubscribeEvent
-    public void onWorldRender(RenderWorldLastEvent event) {
-        if (ToggleCommand.blazeToggled) {
-            if (lowestBlaze != null) {
-                BlockPos stringPos = new BlockPos(lowestBlaze.posX, lowestBlaze.posY + 1, lowestBlaze.posZ);
-                Utils.draw3DString(stringPos, EnumChatFormatting.BOLD + "Smallest", LOWEST_BLAZE_COLOUR, event.partialTicks);
-                AxisAlignedBB aabb = new AxisAlignedBB(lowestBlaze.posX - 0.5, lowestBlaze.posY - 2, lowestBlaze.posZ - 0.5, lowestBlaze.posX + 0.5, lowestBlaze.posY, lowestBlaze.posZ + 0.5);
-                Utils.draw3DBox(aabb, LOWEST_BLAZE_COLOUR, event.partialTicks);
-            }
-            if (highestBlaze != null) {
-                BlockPos stringPos = new BlockPos(highestBlaze.posX, highestBlaze.posY + 1, highestBlaze.posZ);
-                Utils.draw3DString(stringPos, EnumChatFormatting.BOLD + "Biggest", HIGHEST_BLAZE_COLOUR, event.partialTicks);
-                AxisAlignedBB aabb = new AxisAlignedBB(highestBlaze.posX - 0.5, highestBlaze.posY - 2, highestBlaze.posZ - 0.5, highestBlaze.posX + 0.5, highestBlaze.posY, highestBlaze.posZ + 0.5);
-                Utils.draw3DBox(aabb, HIGHEST_BLAZE_COLOUR, event.partialTicks);
-            }
-        }
-        if (ToggleCommand.creeperToggled && drawCreeperLines && !creeperLines.isEmpty()) {
-            for (int i = 0; i < creeperLines.size(); i++) {
-                Utils.draw3DLine(creeperLines.get(i)[0], creeperLines.get(i)[1], CREEPER_COLOURS[i % 10], event.partialTicks);
-            }
-        }
-        if (ToggleCommand.ticTacToeToggled && correctTicTacToeButton != null) {
-            Utils.draw3DBox(correctTicTacToeButton, 0x40FF40, event.partialTicks);
-        }
-    }
-
-    @SubscribeEvent
-    public void onInteract(PlayerInteractEvent event) {
-        if (Minecraft.getMinecraft().thePlayer != event.entityPlayer) return;
-        ItemStack item = event.entityPlayer.getHeldItem();
-        if (item == null) return;
-
-        if (event.action == PlayerInteractEvent.Action.LEFT_CLICK_BLOCK) {
-
-            Block block = Minecraft.getMinecraft().theWorld.getBlockState(event.pos).getBlock();
-
-            if (ToggleCommand.blockBreakingFarmsToggled) {
-                ArrayList<Item> tools = new ArrayList<>(Arrays.asList(
-                        Items.wooden_hoe,
-                        Items.stone_hoe,
-                        Items.iron_hoe,
-                        Items.golden_hoe,
-                        Items.diamond_hoe,
-                        Items.wooden_axe,
-                        Items.stone_axe,
-                        Items.iron_axe,
-                        Items.golden_axe,
-                        Items.diamond_axe
-                ));
-
-                ArrayList<Block> farmBlocks = new ArrayList<>(Arrays.asList(
-                        Blocks.dirt,
-                        Blocks.farmland,
-                        Blocks.carpet,
-                        Blocks.glowstone,
-                        Blocks.sea_lantern
-                ));
-
-                if (tools.contains(item.getItem()) && farmBlocks.contains(block)) {
-                    event.setCanceled(true);
-                }
-
-            }
-        }
-
-        if (event.action == PlayerInteractEvent.Action.RIGHT_CLICK_AIR) {
-            Minecraft mc = Minecraft.getMinecraft();
-            if (ToggleCommand.aotdToggled && item.getDisplayName().contains("Aspect of the Dragons")) {
-                event.setCanceled(true);
-            }
-            if (ToggleCommand.lividDaggerToggled && item.getDisplayName().contains("Livid Dagger")) {
-                event.setCanceled(true);
-            }
-            if (ToggleCommand.notifySlayerSlainToggled) {
-                if (ScoreboardHandler.getSidebarLines().stream().anyMatch(x -> ScoreboardHandler.cleanSB(x).contains("Boss slain!"))) {
-                    if (ScoreboardHandler.getSidebarLines().stream().anyMatch(x -> {
-                        String line = ScoreboardHandler.cleanSB(x);
-                        return Arrays.stream(new String[]{"Howling Cave", "Ruins", "Graveyard", "Coal Mine", "Spider's Den"}).anyMatch(line::contains);
-                    })) {
-                        if (Utils.hasRightClickAbility(item)) {
-                            List<String> lore = Utils.getItemLore(item);
-
-                            int abilityLine = -1;
-                            for (int i = 0; i < lore.size(); i++) {
-                                String line = StringUtils.stripControlCodes(lore.get(i));
-                                if (line.startsWith("Item Ability:")) abilityLine = i;
-                                if (abilityLine != -1 && i > abilityLine) {
-                                    if (line.toLowerCase().contains("damage")) {
-                                        Utils.createTitle(EnumChatFormatting.RED + "Boss slain!", 2);
-                                        break;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        if (event.action == PlayerInteractEvent.Action.RIGHT_CLICK_BLOCK) {
-            Minecraft mc = Minecraft.getMinecraft();
-            Block block = Minecraft.getMinecraft().theWorld.getBlockState(event.pos).getBlock();
-
-            ArrayList<Block> interactables = new ArrayList<>(Arrays.asList(
-                    Blocks.acacia_door,
-                    Blocks.anvil,
-                    Blocks.beacon,
-                    Blocks.bed,
-                    Blocks.birch_door,
-                    Blocks.brewing_stand,
-                    Blocks.command_block,
-                    Blocks.crafting_table,
-                    Blocks.chest,
-                    Blocks.dark_oak_door,
-                    Blocks.daylight_detector,
-                    Blocks.daylight_detector_inverted,
-                    Blocks.dispenser,
-                    Blocks.dropper,
-                    Blocks.enchanting_table,
-                    Blocks.ender_chest,
-                    Blocks.furnace,
-                    Blocks.hopper,
-                    Blocks.jungle_door,
-                    Blocks.lever,
-                    Blocks.noteblock,
-                    Blocks.powered_comparator,
-                    Blocks.unpowered_comparator,
-                    Blocks.powered_repeater,
-                    Blocks.unpowered_repeater,
-                    Blocks.standing_sign,
-                    Blocks.wall_sign,
-                    Blocks.trapdoor,
-                    Blocks.trapped_chest,
-                    Blocks.wooden_button,
-                    Blocks.stone_button,
-                    Blocks.oak_door,
-                    Blocks.skull
-            ));
-            ArrayList<Block> flowerPlaceable = new ArrayList<>(Arrays.asList(
-                    Blocks.grass,
-                    Blocks.dirt,
-                    Blocks.flower_pot,
-                    Blocks.tallgrass,
-                    Blocks.double_plant
-            ));
-            if (Utils.inDungeons) {
-                interactables.add(Blocks.coal_block);
-                interactables.add(Blocks.stained_hardened_clay);
-            }
-            if (flowerPlaceable.contains(block)) {
-                if (ToggleCommand.flowerWeaponsToggled && item.getDisplayName().contains("Flower of Truth")) {
-                    event.setCanceled(true);
-                }
-                if (ToggleCommand.flowerWeaponsToggled && item.getDisplayName().contains("Spirit Sceptre")) {
-                    event.setCanceled(true);
-                }
-            }
-            if (!interactables.contains(block)) {
-                if (ToggleCommand.aotdToggled && item.getDisplayName().contains("Aspect of the Dragons")) {
-                    event.setCanceled(true);
-                }
-                if (ToggleCommand.lividDaggerToggled && item.getDisplayName().contains("Livid Dagger")) {
-                    event.setCanceled(true);
-                }
-            }
-        }
-    }
-
-    @SubscribeEvent
-    public void onEntityInteract(EntityInteractEvent event) {
-        Minecraft mc = Minecraft.getMinecraft();
-        if (mc.thePlayer != event.entityPlayer) return;
-
-        if (ToggleCommand.itemFrameOnSeaLanternsToggled && Utils.inDungeons && event.target instanceof EntityItemFrame) {
-            EntityItemFrame itemFrame = (EntityItemFrame) event.target;
-            ItemStack item = itemFrame.getDisplayedItem();
-            if (item == null || item.getItem() != Items.arrow) return;
-            BlockPos blockPos = Utils.getBlockUnderItemFrame(itemFrame);
-            if (mc.theWorld.getBlockState(blockPos).getBlock() == Blocks.sea_lantern) {
-                event.setCanceled(true);
-            }
-        }
-    }
-
-    @SubscribeEvent
     public void onKey(KeyInputEvent event) {
+        if (!Utils.inSkyblock) return;
+
         EntityPlayerSP player = Minecraft.getMinecraft().thePlayer;
         Minecraft mc = Minecraft.getMinecraft();
         World world = mc.theWorld;
@@ -3272,6 +2007,7 @@ public class DankersSkyblockMod {
 
     @SubscribeEvent
     public void onGuiMouseInputPre(GuiScreenEvent.MouseInputEvent.Pre event) {
+        if (!Utils.inSkyblock) return;
         if (Mouse.getEventButton() != 0 && Mouse.getEventButton() != 1 && Mouse.getEventButton() != 2)
             return; // Left click, middle click or right click
         if (!Mouse.getEventButtonState()) return;
@@ -3282,253 +2018,14 @@ public class DankersSkyblockMod {
                 // a lot of declarations here, if you get scarred, my bad
                 GuiChest chest = (GuiChest) event.gui;
                 IInventory inventory = ((ContainerChest) containerChest).getLowerChestInventory();
-                Slot mouseSlot = chest.getSlotUnderMouse();
-                if (mouseSlot == null) return;
-                ItemStack item = mouseSlot.getStack();
+                Slot slot = chest.getSlotUnderMouse();
+                if (slot == null) return;
+                ItemStack item = slot.getStack();
                 String inventoryName = inventory.getDisplayName().getUnformattedText();
-
-                if (ToggleCommand.stopSalvageStarredToggled && inventoryName.startsWith("Salvage")) {
-                    if (item == null) return;
-                    boolean inSalvageGui = false;
-                    if (item.getDisplayName().contains("Salvage") || item.getDisplayName().contains("Essence")) {
-                        ItemStack salvageItem = inventory.getStackInSlot(13);
-                        if (salvageItem == null) return;
-                        item = salvageItem;
-                        inSalvageGui = true;
-                    }
-                    if (item.getDisplayName().contains("✪") && (mouseSlot.slotNumber > 53 || inSalvageGui)) {
-                        Minecraft.getMinecraft().thePlayer.addChatMessage(new ChatComponentText(ERROR_COLOUR + "Danker's Skyblock Mod has stopped you from salvaging that item!"));
-                        event.setCanceled(true);
-                        return;
-                    }
-                }
-
-                if (inventoryName.endsWith(" Chest") && item != null && item.getDisplayName().contains("Open Reward Chest")) {
-                    List<String> tooltip = item.getTooltip(Minecraft.getMinecraft().thePlayer, Minecraft.getMinecraft().gameSettings.advancedItemTooltips);
-                    for (String lineUnclean : tooltip) {
-                        String line = StringUtils.stripControlCodes(lineUnclean);
-                        if (line.contains("FREE")) {
-                            break;
-                        } else if (line.contains(" Coins")) {
-                            int coinsSpent = Integer.parseInt(line.substring(0, line.indexOf(" ")).replaceAll(",", ""));
-
-                            List<String> scoreboard = ScoreboardHandler.getSidebarLines();
-                            for (String s : scoreboard) {
-                                String sCleaned = ScoreboardHandler.cleanSB(s);
-                                if (sCleaned.contains("The Catacombs (")) {
-                                    if (sCleaned.contains("F1")) {
-                                        LootCommand.f1CoinsSpent += coinsSpent;
-                                        LootCommand.f1CoinsSpentSession += coinsSpent;
-                                        ConfigHandler.writeDoubleConfig("catacombs", "floorOneCoins", LootCommand.f1CoinsSpent);
-                                    } else if (sCleaned.contains("F2")) {
-                                        LootCommand.f2CoinsSpent += coinsSpent;
-                                        LootCommand.f2CoinsSpentSession += coinsSpent;
-                                        ConfigHandler.writeDoubleConfig("catacombs", "floorTwoCoins", LootCommand.f2CoinsSpent);
-                                    } else if (sCleaned.contains("F3")) {
-                                        LootCommand.f3CoinsSpent += coinsSpent;
-                                        LootCommand.f3CoinsSpentSession += coinsSpent;
-                                        ConfigHandler.writeDoubleConfig("catacombs", "floorThreeCoins", LootCommand.f3CoinsSpent);
-                                    } else if (sCleaned.contains("F4")) {
-                                        LootCommand.f4CoinsSpent += coinsSpent;
-                                        LootCommand.f4CoinsSpentSession += coinsSpent;
-                                        ConfigHandler.writeDoubleConfig("catacombs", "floorFourCoins", LootCommand.f4CoinsSpent);
-                                    } else if (sCleaned.contains("F5")) {
-                                        LootCommand.f5CoinsSpent += coinsSpent;
-                                        LootCommand.f5CoinsSpentSession += coinsSpent;
-                                        ConfigHandler.writeDoubleConfig("catacombs", "floorFiveCoins", LootCommand.f5CoinsSpent);
-                                    } else if (sCleaned.contains("F6")) {
-                                        LootCommand.f6CoinsSpent += coinsSpent;
-                                        LootCommand.f6CoinsSpentSession += coinsSpent;
-                                        ConfigHandler.writeDoubleConfig("catacombs", "floorSixCoins", LootCommand.f6CoinsSpent);
-                                    } else if (sCleaned.contains("F7")) {
-                                        LootCommand.f7CoinsSpent += coinsSpent;
-                                        LootCommand.f7CoinsSpentSession += coinsSpent;
-                                        ConfigHandler.writeDoubleConfig("catacombs", "floorSevenCoins", LootCommand.f7CoinsSpent);
-                                    }
-                                    break;
-                                }
-                            }
-                            break;
-                        }
-                    }
-                }
-
-                if (ToggleCommand.chronomatronToggled && inventoryName.startsWith("Chronomatron (")) {
-                    if (item == null) {
-                        if (event.isCancelable() && !Keyboard.isKeyDown(Keyboard.KEY_LCONTROL) && !Keyboard.isKeyDown(Keyboard.KEY_RCONTROL))
-                            event.setCanceled(true);
-                        return;
-                    }
-                    if (inventory.getStackInSlot(49).getDisplayName().startsWith("§7Timer: §a") && (item.getItem() == Item.getItemFromBlock(Blocks.stained_glass) || item.getItem() == Item.getItemFromBlock(Blocks.stained_hardened_clay))) {
-                        if (chronomatronPattern.size() > chronomatronMouseClicks && !item.getDisplayName().equals(chronomatronPattern.get(chronomatronMouseClicks))) {
-                            if (event.isCancelable() && !Keyboard.isKeyDown(Keyboard.KEY_LCONTROL) && !Keyboard.isKeyDown(Keyboard.KEY_RCONTROL))
-                                event.setCanceled(true);
-                            return;
-                        }
-                        chronomatronMouseClicks++;
-                    } else if (inventory.getStackInSlot(49).getDisplayName().startsWith("§aRemember the pattern!")) {
-                        if (event.isCancelable()) event.setCanceled(true);
-                        return;
-                    }
-                }
-
-                if (ToggleCommand.ultrasequencerToggled && inventoryName.startsWith("Ultrasequencer (")) {
-                    if (item == null) {
-                        if (event.isCancelable() && !Keyboard.isKeyDown(Keyboard.KEY_LCONTROL) && !Keyboard.isKeyDown(Keyboard.KEY_RCONTROL))
-                            event.setCanceled(true);
-                        return;
-                    }
-                    if (inventory.getStackInSlot(49).getDisplayName().equals("§aRemember the pattern!")) {
-                        if (event.isCancelable()) event.setCanceled(true);
-                        return;
-                    } else if (inventory.getStackInSlot(49).getDisplayName().startsWith("§7Timer: §a")) {
-                        if (clickInOrderSlots[lastUltraSequencerClicked] != null && mouseSlot.getSlotIndex() != clickInOrderSlots[lastUltraSequencerClicked].getSlotIndex()) {
-                            if (event.isCancelable() && !Keyboard.isKeyDown(Keyboard.KEY_LCONTROL) && !Keyboard.isKeyDown(Keyboard.KEY_RCONTROL))
-                                event.setCanceled(true);
-                            return;
-                        }
-                    }
-                }
-
-                if (ToggleCommand.blockWrongTerminalClicksToggled && Utils.inDungeons) {
-                    boolean shouldCancel = false;
-
-                    if (item == null) return;
-
-                    //most of these are extra but who cares
-
-                    switch (inventoryName) {
-                        case "Correct all the panes!":
-                            shouldCancel = !StringUtils.stripControlCodes(item.getDisplayName()).startsWith("Off");
-                            break;
-                        case "Navigate the maze!":
-                            if (item.getItem() != Item.getItemFromBlock(Blocks.stained_glass_pane)) {
-                                shouldCancel = true;
-                                break;
-                            }
-
-                            if (item.getItemDamage() != 0) {
-                                shouldCancel = true;
-                                break;
-                            }
-
-                            boolean isValid = false;
-
-                            int slotIndex = mouseSlot.getSlotIndex();
-
-                            if (slotIndex % 9 != 8 && slotIndex != 53) {
-                                ItemStack itemStack = inventory.getStackInSlot(slotIndex + 1);
-                                if (itemStack != null && itemStack.getItemDamage() == 5) isValid = true;
-                            }
-
-                            if (!isValid && slotIndex % 9 != 0 && slotIndex != 0) {
-                                ItemStack itemStack = inventory.getStackInSlot(slotIndex - 1);
-                                if (itemStack != null && itemStack.getItemDamage() == 5) isValid = true;
-                            }
-
-                            if (!isValid && slotIndex <= 44) {
-                                ItemStack itemStack = inventory.getStackInSlot(slotIndex + 9);
-                                if (itemStack != null && itemStack.getItemDamage() == 5) isValid = true;
-                            }
-
-                            if (!isValid && slotIndex >= 9) {
-                                ItemStack itemStack = inventory.getStackInSlot(slotIndex - 9);
-                                if (itemStack != null && itemStack.getItemDamage() == 5) isValid = true;
-                            }
-
-                            shouldCancel = !isValid;
-
-                            break;
-                        case "Click in order!":
-
-                            if (mouseSlot.getSlotIndex() > 35) {
-                                break;
-                            }
-
-                            if ((item.getItem() != Item.getItemFromBlock(Blocks.stained_glass_pane))) {
-                                shouldCancel = true;
-                                break;
-                            }
-                            if (item.getItemDamage() != 14) {
-                                shouldCancel = true;
-                                break;
-                            }
-                            int needed = terminalNumberNeeded[0];
-                            if (needed == 0) break;
-                            shouldCancel = needed != -1 && item.stackSize != needed;
-                            break;
-                    }
-
-                    if (!shouldCancel) {
-                        if (inventoryName.startsWith("What starts with:")) {
-                            char letter = inventoryName.charAt(inventoryName.indexOf("'") + 1);
-                            shouldCancel = !(StringUtils.stripControlCodes(item.getDisplayName()).charAt(0) == letter);
-                        } else if (inventoryName.startsWith("Select all the")) {
-                            if (terminalColorNeeded == null) return;
-                            String itemName = StringUtils.stripControlCodes(item.getDisplayName()).toUpperCase();
-                            shouldCancel = !(itemName.contains(terminalColorNeeded) || (terminalColorNeeded.equals("SILVER") && itemName.contains("LIGHT GRAY")) || (terminalColorNeeded.equals("WHITE") && itemName.equals("WOOL")));
-                        }
-                    }
-
-                    event.setCanceled(shouldCancel && !Keyboard.isKeyDown(Keyboard.KEY_LCONTROL) && !Keyboard.isKeyDown(Keyboard.KEY_RCONTROL));
-                }
-
-                if (!BlockSlayerCommand.onlySlayerName.equals("") && item != null) {
-                    if (inventoryName.equals("Slayer")) {
-                        if (!item.getDisplayName().contains("Revenant Horror") && !item.getDisplayName().contains("Tarantula Broodfather") && !item.getDisplayName().contains("Sven Packmaster"))
-                            return;
-                        if (!item.getDisplayName().contains(BlockSlayerCommand.onlySlayerName)) {
-                            Minecraft.getMinecraft().thePlayer.addChatMessage(new ChatComponentText(ERROR_COLOUR + "Danker's Skyblock Mod has stopped you from starting this quest (Set to " + BlockSlayerCommand.onlySlayerName + " " + BlockSlayerCommand.onlySlayerNumber + ")"));
-                            event.setCanceled(true);
-                        }
-                    } else if (inventoryName.equals("Revenant Horror") || inventoryName.equals("Tarantula Broodfather") || inventoryName.equals("Sven Packmaster")) {
-                        if (item.getDisplayName().contains("Revenant Horror") || item.getDisplayName().contains("Tarantula Broodfather") || item.getDisplayName().contains("Sven Packmaster")) {
-                            // Only check number as they passed the above check
-                            String slayerNumber = item.getDisplayName().substring(item.getDisplayName().lastIndexOf(" ") + 1);
-                            if (!slayerNumber.equals(BlockSlayerCommand.onlySlayerNumber)) {
-                                Minecraft.getMinecraft().thePlayer.addChatMessage(new ChatComponentText(ERROR_COLOUR + "Danker's Skyblock Mod has stopped you from starting this quest (Set to " + BlockSlayerCommand.onlySlayerName + " " + BlockSlayerCommand.onlySlayerNumber + ")"));
-                                event.setCanceled(true);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    @SubscribeEvent
-    public void onMouseInputPost(GuiScreenEvent.MouseInputEvent.Post event) {
-        if (Mouse.getEventButton() == 0 && event.gui instanceof GuiChat) {
-            if (ToggleCommand.chatMaddoxToggled && System.currentTimeMillis() / 1000 - lastMaddoxTime < 10) {
-                Minecraft.getMinecraft().thePlayer.sendChatMessage(lastMaddoxCommand);
-            }
-        }
-    }
-
-    @SubscribeEvent
-    public void onGuiOpen(GuiOpenEvent event) {
-        Minecraft mc = Minecraft.getMinecraft();
-        GameSettings gameSettings = mc.gameSettings;
-        if (event.gui instanceof GuiChest) {
-            Container containerChest = ((GuiChest) event.gui).inventorySlots;
-            if (containerChest instanceof ContainerChest) {
-                GuiChest chest = (GuiChest) event.gui;
-                IInventory inventory = ((ContainerChest) containerChest).getLowerChestInventory();
-                String inventoryName = inventory.getDisplayName().getUnformattedText();
-
-                if (ToggleCommand.swapToPickBlockToggled) {
-                    if (inventoryName.startsWith("Chronomatron (") || inventoryName.startsWith("Superpairs (") || inventoryName.startsWith("Ultrasequencer (") || inventoryName.startsWith("What starts with:") || inventoryName.startsWith("Select all the") || inventoryName.startsWith("Navigate the maze!") || inventoryName.startsWith("Correct all the panes!") || inventoryName.startsWith("Click in order!") || inventoryName.startsWith("Harp -")) {
-                        if (!pickBlockBindSwapped) {
-                            pickBlockBind = gameSettings.keyBindPickBlock.getKeyCode();
-                            gameSettings.keyBindPickBlock.setKeyCode(-100);
-                            pickBlockBindSwapped = true;
-                        }
-                    } else {
-                        if (pickBlockBindSwapped) {
-                            gameSettings.keyBindPickBlock.setKeyCode(pickBlockBind);
-                            pickBlockBindSwapped = false;
-                        }
-                    }
+                if (item == null) {
+                    if (MinecraftForge.EVENT_BUS.post(new ChestSlotClickedEvent(chest, inventory, inventoryName, slot))) event.setCanceled(true);
+                } else {
+                    if (MinecraftForge.EVENT_BUS.post(new ChestSlotClickedEvent(chest, inventory, inventoryName, slot, item))) event.setCanceled(true);
                 }
             }
         } else {
@@ -3554,6 +2051,7 @@ public class DankersSkyblockMod {
 
     @SubscribeEvent
     public void onGuiRender(GuiScreenEvent.BackgroundDrawnEvent event) {
+        if (!Utils.inSkyblock) return;
         if (event.gui instanceof GuiChest) {
             GuiChest inventory = (GuiChest) event.gui;
             Container containerChest = inventory.inventorySlots;
@@ -3567,359 +2065,7 @@ public class DankersSkyblockMod {
                 String displayName = ((ContainerChest) containerChest).getLowerChestInventory().getDisplayName().getUnformattedText().trim();
                 int chestSize = inventory.inventorySlots.inventorySlots.size();
 
-                if (ToggleCommand.petColoursToggled) {
-                    for (Slot slot : invSlots) {
-                        ItemStack item = slot.getStack();
-                        if (item == null) continue;
-                        String name = item.getDisplayName();
-                        if (petPattern.matcher(StringUtils.stripControlCodes(name)).find()) {
-                            if (name.endsWith("aHealer") || name.endsWith("aMage") || name.endsWith("aBerserk") || name.endsWith("aArcher") || name.endsWith("aTank"))
-                                continue;
-                            int colour;
-                            int petLevel = Integer.parseInt(item.getDisplayName().substring(item.getDisplayName().indexOf(" ") + 1, item.getDisplayName().indexOf("]")));
-                            if (petLevel == 100) {
-                                colour = PET_100;
-                            } else if (petLevel >= 90) {
-                                colour = PET_90_TO_99;
-                            } else if (petLevel >= 80) {
-                                colour = PET_80_TO_89;
-                            } else if (petLevel >= 70) {
-                                colour = PET_70_TO_79;
-                            } else if (petLevel >= 60) {
-                                colour = PET_60_TO_69;
-                            } else if (petLevel >= 50) {
-                                colour = PET_50_TO_59;
-                            } else if (petLevel >= 40) {
-                                colour = PET_40_TO_49;
-                            } else if (petLevel >= 30) {
-                                colour = PET_30_TO_39;
-                            } else if (petLevel >= 20) {
-                                colour = PET_20_TO_29;
-                            } else if (petLevel >= 10) {
-                                colour = PET_10_TO_19;
-                            } else {
-                                colour = PET_1_TO_9;
-                            }
-                            Utils.drawOnSlot(chestSize, slot.xDisplayPosition, slot.yDisplayPosition, colour + 0xBF000000);
-                        }
-                    }
-                }
-                if (ToggleCommand.clickInOrderToggled && Utils.inDungeons && displayName.equals("Chest") && tickAmount != until) {
-                    if (chestOpen == 0) {
-                        until = tickAmount;
-                        chestOpen = 1;
-                        return;
-                    }
-                    mc.thePlayer.closeScreen();
-                    chestOpen = 0;
-                }
-                if (displayName.contains("Harp") && ToggleCommand.startsWithToggled) {
-                    String[] currentInv = new String[54];
-                    Container playerContainer = mc.thePlayer.openContainer;
-                    IInventory chestInventory = ((ContainerChest)playerContainer).getLowerChestInventory();
-                    for (int i = 37; i <= 43; i++) {
-                        ItemStack itemStack = chestInventory.getStackInSlot(i);
-                        if (itemStack != null) {
-                            if (itemStack.getUnlocalizedName().toLowerCase().contains("quartz")) {
-                                for (int j = 0; j <= 53; j++) {
-                                    ItemStack name = chestInventory.getStackInSlot(j);
-                                    if (name != null)
-                                        currentInv[j] = name.toString();
-                                }
-                                if (!Arrays.toString(currentInv).equals(Arrays.toString(harpInv))) {
-                                    mc.playerController.windowClick(mc.thePlayer.openContainer.windowId, i, 2, 0, mc.thePlayer);
-                                    mc.thePlayer.addChatMessage(new ChatComponentText("clicked"));
-                                    until = tickAmount;
-                                    harpInv = currentInv;
-                                }
-                            }
-                        }
-                    }
-                }
-                if (displayName.equals("Navigate the maze!") && invSlots.size() == 90 && ToggleCommand.startsWithToggled && System.currentTimeMillis() - lastInteractTime >= SleepCommand.waitAmount) {
-                    if (mazeId <= mc.thePlayer.openContainer.windowId) {
-                        mazeId = mc.thePlayer.openContainer.windowId;
-                    }
-                    Container playerContainer = mc.thePlayer.openContainer;
-                    IInventory chestInventory = ((ContainerChest)playerContainer).getLowerChestInventory();
-                    if (slotIn == -1) {
-                        System.out.println("checking chest");
-                        for (int i = 0; i <= 53; i++) {
-                            ItemStack itemStack = chestInventory.getStackInSlot(i);
-                            if (itemStack != null) {
-                                int type = itemStack.getItemDamage();
-                                if (type == 0)
-                                    chest[i] = 1;
-                                if (type == 5) {
-                                    slotIn = i;
-                                    chest[i] = 2;
-                                }
-                            }
-                        }
-                    }
-                    int firstCheck = slotIn + 1;
-                    int secondCheck = slotIn + 9;
-                    int thirdCheck = slotIn - 1;
-                    int fourthCheck = slotIn - 9;
-                    System.out.println("attempt " + slotIn);
-                    if (firstCheck % 9 != 0 && firstCheck <= 53 && chest[firstCheck] == 1) {
-                        chest[firstCheck] = 0;
-                        slotIn = firstCheck;
-                        System.out.println("1");
-                        mc.playerController.windowClick(mazeId, firstCheck, 0, 0, mc.thePlayer);
-                        mazeId++;
-                        lastInteractTime = System.currentTimeMillis();
-                    } else if (secondCheck <= 53 && chest[secondCheck] == 1) {
-                        chest[secondCheck] = 0;
-                        slotIn = secondCheck;
-                        System.out.println("2");
-                        mc.playerController.windowClick(mazeId, secondCheck, 0, 0, mc.thePlayer);
-                        mazeId++;
-                        lastInteractTime = System.currentTimeMillis();
-                    } else if (thirdCheck % 9 != 8 && thirdCheck >= 0 && thirdCheck <= 53 && chest[thirdCheck] == 1) {
-                        chest[thirdCheck] = 0;
-                        slotIn = thirdCheck;
-                        System.out.println("3");
-                        mc.playerController.windowClick(mazeId, thirdCheck, 0, 0, mc.thePlayer);
-                        mazeId++;
-                        lastInteractTime = System.currentTimeMillis();
-                    } else if (fourthCheck >= 0 && (Minecraft.getMinecraft()).currentScreen != null && chest[fourthCheck] == 1) {
-                        chest[fourthCheck] = 0;
-                        slotIn = fourthCheck;
-                        System.out.println("4");
-                        mc.playerController.windowClick(mazeId, fourthCheck, 0, 0, mc.thePlayer);
-                        mazeId++;
-                        lastInteractTime = System.currentTimeMillis();
-                    }
-                }
-
-                if (ToggleCommand.startsWithToggled && System.currentTimeMillis() - lastInteractTime >= SleepCommand.waitAmount && displayName.startsWith("What starts with:")) {
-                    char letter = displayName.charAt(displayName.indexOf("'") + 1);
-                    if (mazeId <= mc.thePlayer.openContainer.windowId)
-                        mazeId = mc.thePlayer.openContainer.windowId;
-                    for (Slot startsWith : invSlots) {
-                        if (startsWith.slotNumber <= lastSlot ||
-                                startsWith.getSlotIndex() <= lastSlot)
-                            continue;
-                        ItemStack item = startsWith.getStack();
-                        if (item == null ||
-                                item.isItemEnchanted())
-                            continue;
-                        if (StringUtils.stripControlCodes(item.getDisplayName()).charAt(0) == letter) {
-                            mc.playerController.windowClick(mazeId, startsWith.slotNumber, 0, 0, mc.thePlayer);
-                            mazeId++;
-                            lastSlot = startsWith.getSlotIndex();
-                            lastInteractTime = System.currentTimeMillis();
-                            break;
-                        }
-                        if (mazeId - 15 > mc.thePlayer.openContainer.windowId)
-                            break;
-                    }
-                }
-
-                if (ToggleCommand.startsWithToggled && System.currentTimeMillis() - lastInteractTime >= SleepCommand.waitAmount && displayName.equals("Correct all the panes!")) {
-                    for (Slot startsWith : invSlots) {
-                        if (startsWith.getSlotIndex() > 53 ||
-                                startsWith.getSlotIndex() <= lastSlot)
-                            continue;
-                        ItemStack item = startsWith.getStack();
-                        if (item == null ||
-                                item.isItemEnchanted())
-                            continue;
-                        if (item.getDisplayName().contains("Off") && (Minecraft.getMinecraft()).currentScreen != null) {
-                            if (mazeId <= mc.thePlayer.openContainer.windowId)
-                                mazeId = mc.thePlayer.openContainer.windowId;
-                            mc.playerController.windowClick(mazeId, startsWith.slotNumber, 0, 0, mc.thePlayer);
-                            mazeId++;
-                            lastSlot = startsWith.getSlotIndex();
-                            lastInteractTime = System.currentTimeMillis();
-                            break;
-                        }
-                        if (mazeId - 15 > mc.thePlayer.openContainer.windowId)
-                            break;
-                    }
-                }
-
-                if (ToggleCommand.startsWithToggled && System.currentTimeMillis() - lastInteractTime >= SleepCommand.waitAmount && displayName.startsWith("Select all the")) {
-                    String colour = displayName.split(" ")[3];
-                    for (Slot slot : invSlots) {
-                        if (slot.getSlotIndex() > 53 || slot.getSlotIndex() <= lastSlot) continue;
-                        ItemStack item = slot.getStack();
-                        if (item == null || item.isItemEnchanted()) continue;
-                        String itemName = StringUtils.stripControlCodes(item.getDisplayName()).toUpperCase();
-                        if (item.getDisplayName().toUpperCase().contains(colour) || (colour.equals("SILVER") && itemName.contains("LIGHT GRAY")) || (colour.equals("WHITE") && itemName.equals("WOOL")) || (colour.equals("BLACK") && itemName.contains("INK")) || (colour.equals("BROWN") && itemName.contains("COCOA")) || (colour.equals("BLUE") && itemName.contains("LAPIS")) || (colour.equals("WHITE") && itemName.contains("BONE"))) {
-                            if (mazeId <= mc.thePlayer.openContainer.windowId)
-                                mazeId = mc.thePlayer.openContainer.windowId;
-                            lastInteractTime = System.currentTimeMillis();
-                            mc.playerController.windowClick(mazeId, slot.slotNumber, 2, 0, mc.thePlayer);
-                            lastSlot = slot.getSlotIndex();
-                            mazeId++;
-                            break;
-                        }
-                        if (mazeId - 15 > mc.thePlayer.openContainer.windowId)
-                            break;
-                    }
-                }
-                if (displayName.equals("Click in order!") && System.currentTimeMillis() - lastInteractTime >= SleepCommand.waitAmount && ToggleCommand.startsWithToggled) {
-                    Container playerContainer = mc.thePlayer.openContainer;
-                    IInventory chestInventory = ((ContainerChest)playerContainer).getLowerChestInventory();
-                    if (mazeId <= mc.thePlayer.openContainer.windowId)
-                        mazeId = mc.thePlayer.openContainer.windowId;
-                    int[] order = new int[14];
-                    int i;
-                    for (i = 10; i <= 25; i++) {
-                        if (i != 17 && i != 18) {
-                            ItemStack click = chestInventory.getStackInSlot(i);
-                            if (click == null)
-                                break;
-                            order[(chestInventory.getStackInSlot(i)).stackSize - 1] = i;
-                        }
-                    }
-                    for (i = 0; i < order.length &&
-                            order[i] != 0; i++) {
-                        if (i > lastSlot) {
-                            ItemStack check = chestInventory.getStackInSlot(order[i]);
-                            if (order[i] != 0 && check != null && check.getItemDamage() == 14) {
-                                mc.playerController.windowClick(mazeId, order[i], 2, 0, mc.thePlayer);
-                                mazeId++;
-                                lastSlot = i;
-                                lastInteractTime = System.currentTimeMillis();
-                                break;
-                            }
-                            if (mazeId - 15 > mc.thePlayer.openContainer.windowId)
-                                break;
-                        }
-                    }
-                }
-
-                if (ToggleCommand.ultrasequencerToggled && displayName.startsWith("Ultrasequencer (")) {
-                    EntityPlayerSP player = mc.thePlayer;
-                    if (invSlots.size() > 48 && invSlots.get(49).getStack() != null && player.inventory.getItemStack() == null) {
-                        if (invSlots.get(49).getStack().getDisplayName().startsWith("§7Timer: §a")) {
-                            lastUltraSequencerClicked = 0;
-                            for (Slot slot : clickInOrderSlots) {
-                                if (slot != null && slot.getStack() != null && StringUtils.stripControlCodes(slot.getStack().getDisplayName()).matches("\\d+")) {
-                                    int number = Integer.parseInt(StringUtils.stripControlCodes(slot.getStack().getDisplayName()));
-                                    if (number > lastUltraSequencerClicked) {
-                                        lastUltraSequencerClicked = number;
-                                    }
-                                }
-                            }
-                            if (clickInOrderSlots[lastUltraSequencerClicked] != null && player.inventory.getItemStack() == null && tickAmount % 2 == 0 && lastUltraSequencerClicked != 0 && until == lastUltraSequencerClicked) {
-                                Slot nextSlot = clickInOrderSlots[lastUltraSequencerClicked];
-                                new TextRenderer(mc, String.valueOf(mc.thePlayer.openContainer.windowId), 50, 50, 1.0D);
-                                mc.playerController.windowClick(mc.thePlayer.openContainer.windowId, nextSlot.slotNumber, 0, 0, mc.thePlayer);
-                                Utils.drawOnSlot(chestSize, nextSlot.xDisplayPosition, nextSlot.yDisplayPosition, -448725184);
-                                until = lastUltraSequencerClicked + 1;
-                                tickAmount = 0;
-                            }
-                            if (clickInOrderSlots[lastUltraSequencerClicked] != null && player.inventory.getItemStack() == null && tickAmount == 18 && lastUltraSequencerClicked < 1) {
-                                Slot nextSlot = clickInOrderSlots[lastUltraSequencerClicked];
-                                new TextRenderer(mc, String.valueOf(mc.thePlayer.openContainer.windowId), 50, 50, 1.0D);
-                                mc.playerController.windowClick(mc.thePlayer.openContainer.windowId, nextSlot.slotNumber, 0, 0, mc.thePlayer);
-                                Utils.drawOnSlot(chestSize, nextSlot.xDisplayPosition, nextSlot.yDisplayPosition, -448725184);
-                                tickAmount = 0;
-                                until = 1;
-                            }
-                            if (lastUltraSequencerClicked + 1 < clickInOrderSlots.length && clickInOrderSlots[lastUltraSequencerClicked + 1] != null) {
-                                Slot nextSlot = clickInOrderSlots[lastUltraSequencerClicked + 1];
-                                Utils.drawOnSlot(chestSize, nextSlot.xDisplayPosition, nextSlot.yDisplayPosition, -683615514);
-                            }
-                        }
-                    }
-                }
-
-                if (ToggleCommand.chronomatronToggled && displayName.startsWith("Chronomatron (")) {
-                    EntityPlayerSP player = mc.thePlayer;
-                    if (player.inventory.getItemStack() == null && invSlots.size() > 48 && invSlots.get(49).getStack() != null) {
-                        if (invSlots.get(49).getStack().getDisplayName().startsWith("§7Timer: §a") && invSlots.get(4).getStack() != null) {
-                            int round = invSlots.get(4).getStack().stackSize;
-                            int timerSeconds = Integer.parseInt(StringUtils.stripControlCodes(invSlots.get(49).getStack().getDisplayName()).replaceAll("[^\\d]", ""));
-                            if (round != lastChronomatronRound && timerSeconds == round + 2) {
-                                lastChronomatronRound = round;
-                                for (int i = 10; i <= 43; i++) {
-                                    ItemStack stack = invSlots.get(i).getStack();
-                                    if (stack == null) continue;
-                                    if (stack.getItem() == Item.getItemFromBlock(Blocks.stained_hardened_clay)) {
-                                        chronomatronPattern.add(stack.getDisplayName());
-                                        break;
-                                    }
-                                }
-                            }
-                            if (chronomatronMouseClicks < chronomatronPattern.size() && player.inventory.getItemStack() == null) {
-                                for (int i = 10; i <= 43; i++) {
-                                    ItemStack glass = (invSlots.get(i)).getStack();
-                                    if (glass != null) {
-                                        if (player.inventory.getItemStack() == null) {
-                                            if (tickAmount % 5 == 0) {
-                                                Slot glassSlot = invSlots.get(i);
-                                                if (glass.getDisplayName().equals(chronomatronPattern.get(chronomatronMouseClicks))) {
-                                                    Utils.drawOnSlot(chestSize, glassSlot.xDisplayPosition, glassSlot.yDisplayPosition, -448725184);
-                                                    mc.playerController.windowClick(mc.thePlayer.openContainer.windowId, glassSlot.slotNumber, 0, 0, mc.thePlayer);
-                                                    chronomatronMouseClicks++;
-                                                    break;
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        } else if (invSlots.get(49).getStack().getDisplayName().equals("§aRemember the pattern!")) {
-                            chronomatronMouseClicks = 0;
-                        }
-                    }
-                    new TextRenderer(mc, String.join("\n", chronomatronPattern), (int) (guiLeft * 0.8), 10, 1);
-                }
-
-                if (ToggleCommand.superpairsToggled && displayName.contains("Superpairs (")) {
-                    new TextRenderer(mc, String.valueOf(mc.thePlayer.openContainer.windowId), 50, 50, 1.0D);
-                    HashMap<String, HashSet<Integer>> matches = new HashMap<>();
-                    for (int i = 0; i < 53; i++) {
-                        ItemStack itemStack = experimentTableSlots[i];
-                        if (itemStack == null) continue;
-                        Slot slot = invSlots.get(i);
-                        int x = guiLeft + slot.xDisplayPosition;
-                        int y = guiTop + slot.yDisplayPosition;
-                        if (chestSize != 90) y += (6 - (chestSize - 36) / 9) * 9;
-
-                        //Utils.renderItem(itemStack, x, y, -100);
-
-                        String itemName = itemStack.getDisplayName();
-                        String keyName = itemName + itemStack.getUnlocalizedName();
-                        matches.computeIfAbsent(keyName, k -> new HashSet<>());
-                        matches.get(keyName).add(i);
-                    }
-
-                    Color[] colors = {
-                            new Color(255, 0, 0, 100),
-                            new Color(0, 0, 255, 100),
-                            new Color(100, 179, 113, 100),
-                            new Color(255, 114, 255, 100),
-                            new Color(255, 199, 87, 100),
-                            new Color(119, 105, 198, 100),
-                            new Color(135, 199, 112, 100),
-                            new Color(240, 37, 240, 100),
-                            new Color(178, 132, 190, 100),
-                            new Color(63, 135, 163, 100),
-                            new Color(146, 74, 10, 100),
-                            new Color(255, 255, 255, 100),
-                            new Color(217, 252, 140, 100),
-                            new Color(255, 82, 82, 100)
-                    };
-
-                    Iterator<Color> colorIterator = Arrays.stream(colors).iterator();
-
-                    matches.forEach((itemName, slotSet) -> {
-                        if (slotSet.size() < 2) return;
-                        ArrayList<Slot> slots = new ArrayList<>();
-                        slotSet.forEach(slotNum -> slots.add(invSlots.get(slotNum)));
-                        Color color = colorIterator.next();
-                        slots.forEach(slot -> {
-                            Utils.drawOnSlot(chestSize, slot.xDisplayPosition, slot.yDisplayPosition, color.getRGB());
-                        });
-                    });
-                }
-
+                MinecraftForge.EVENT_BUS.post(new GuiChestBackgroundDrawnEvent(inventory, displayName, chestSize, invSlots));
             }
         }
     }
