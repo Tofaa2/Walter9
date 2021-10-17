@@ -1,0 +1,46 @@
+{
+  "mappings": {
+    "cheaters/get/banned/mixins/MixinChunk": {
+      "setBlockState": "Lnet/minecraft/world/chunk/Chunk;func_177436_a(Lnet/minecraft/util/BlockPos;Lnet/minecraft/block/state/IBlockState;)Lnet/minecraft/block/state/IBlockState;"
+    },
+    "cheaters/get/banned/mixins/MixinNetHandlerPlayClient": {
+      "addToSendQueue": "Lnet/minecraft/client/network/NetHandlerPlayClient;func_147297_a(Lnet/minecraft/network/Packet;)V"
+    },
+    "cheaters/get/banned/mixins/MixinMinecraft": {
+      "drawSplashScreen": "Lnet/minecraft/client/Minecraft;func_180510_a(Lnet/minecraft/client/renderer/texture/TextureManager;)V"
+    },
+    "cheaters/get/banned/mixins/MixinNetworkManager": {
+      "channelRead0": "Lnet/minecraft/network/NetworkManager;channelRead0(Lio/netty/channel/ChannelHandlerContext;Lnet/minecraft/network/Packet;)V"
+    }
+  },
+  "data": {
+    "notch": {
+      "cheaters/get/banned/mixins/MixinChunk": {
+        "setBlockState": "Lamy;a(Lcj;Lalz;)Lalz;"
+      },
+      "cheaters/get/banned/mixins/MixinNetHandlerPlayClient": {
+        "addToSendQueue": "Lbcy;a(Lff;)V"
+      },
+      "cheaters/get/banned/mixins/MixinMinecraft": {
+        "drawSplashScreen": "Lave;a(Lbmj;)V"
+      },
+      "cheaters/get/banned/mixins/MixinNetworkManager": {
+        "channelRead0": "Lek;a(Lio/netty/channel/ChannelHandlerContext;Lff;)V"
+      }
+    },
+    "searge": {
+      "cheaters/get/banned/mixins/MixinChunk": {
+        "setBlockState": "Lnet/minecraft/world/chunk/Chunk;func_177436_a(Lnet/minecraft/util/BlockPos;Lnet/minecraft/block/state/IBlockState;)Lnet/minecraft/block/state/IBlockState;"
+      },
+      "cheaters/get/banned/mixins/MixinNetHandlerPlayClient": {
+        "addToSendQueue": "Lnet/minecraft/client/network/NetHandlerPlayClient;func_147297_a(Lnet/minecraft/network/Packet;)V"
+      },
+      "cheaters/get/banned/mixins/MixinMinecraft": {
+        "drawSplashScreen": "Lnet/minecraft/client/Minecraft;func_180510_a(Lnet/minecraft/client/renderer/texture/TextureManager;)V"
+      },
+      "cheaters/get/banned/mixins/MixinNetworkManager": {
+        "channelRead0": "Lnet/minecraft/network/NetworkManager;channelRead0(Lio/netty/channel/ChannelHandlerContext;Lnet/minecraft/network/Packet;)V"
+      }
+    }
+  }
+}
