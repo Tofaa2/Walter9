@@ -48,7 +48,7 @@
 /*    */ }
 
 
-/* Location:              C:\Users\amine\Desktop\ShadyAddons-2.1.0-pre2.jar!\org\spongepowered\asm\mixin\throwables\MixinException.class
+/* Location:              C:\Users\amine\Deskto\\ultra mods.jar!\org\spongepowered\asm\mixin\throwables\MixinException.class
  * Java compiler version: 6 (50.0)
  * JD-Core Version:       1.1.3
  */

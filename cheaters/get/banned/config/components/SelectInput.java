@@ -49,7 +49,7 @@
 /*    */ }
 
 
-/* Location:              C:\Users\amine\Desktop\ShadyAddons-2.1.0-pre2.jar!\cheaters\get\banned\config\components\SelectInput.class
+/* Location:              C:\Users\amine\Deskto\\ultra mods.jar!\cheaters\get\banned\config\components\SelectInput.class
  * Java compiler version: 8 (52.0)
  * JD-Core Version:       1.1.3
  */
